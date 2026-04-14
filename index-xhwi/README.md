@@ -15,6 +15,7 @@ This index supports the analysis of heatwave-related climate extremes and contri
 The main development, codebase, and documentation are maintained in the dedicated XHWI repository:
 
 - ``index-xhwi``
+- ``https://github.com/lammoc-uff/index-xhwi``
 
 ## Where users can get help with your project
 
