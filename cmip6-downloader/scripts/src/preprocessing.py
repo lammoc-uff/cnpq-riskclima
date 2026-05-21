@@ -150,6 +150,6 @@ def crop_to_brazil(ds: xr.Dataset) -> xr.Dataset:
     return ds.sel(
         **{
             lat_name: slice(-70, 20),
-            lon_name: slice(-120, -30),
+            lon_name: slice(-120, -5),
         }
     )
