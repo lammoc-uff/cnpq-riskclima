@@ -39,27 +39,27 @@ def _sort_and_cdf_np(a_1d: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return sorted_full, cdf_full
 
 
-def compute_sorted_and_cdf(da: xr.DataArray) -> tuple[xr.DataArray, xr.DataArray]:
+def compute_sorted_and_cdf(da: xr.DataArray, dim: str = "time") -> tuple[xr.DataArray, xr.DataArray]:
     """
-    Compute sorted values and CDF along the 'time' dimension for each grid point.
+    Compute sorted values and CDF along the selected dimension for each grid point.
 
     Parameters
     ----------
     da : xarray.DataArray
         DataArray containing the variable to process (e.g., temperature).
-        Must include the 'time' dimension.
+        Must include the selected dimension.
 
     Returns
     -------
     tuple[xr.DataArray, xr.DataArray]
-        - Sorted values along 'time'.
-        - CDF values along 'time'.
+        - Sorted values along the selected dimension.
+        - CDF values along the selected dimension.
     """
     sorted_vals, cdf_vals = xr.apply_ufunc(
         _sort_and_cdf_np,
         da,
-        input_core_dims=[["time"]],
-        output_core_dims=[["time"], ["time"]],
+        input_core_dims=[[dim]],
+        output_core_dims=[[dim], [dim]],
         vectorize=True,
         dask="parallelized",
         output_dtypes=[da.dtype, float],
@@ -118,6 +118,8 @@ def match_cdf(
     validation_t2m: xr.DataArray,
     sorted_temp: xr.DataArray,
     cdf_vals: xr.DataArray,
+    validation_dim: str = "time",
+    calibration_dim: str = "calibration_time",
 ) -> xr.DataArray:
     """
     Match validation temperatures to their cumulative probability
@@ -128,7 +130,7 @@ def match_cdf(
     validation_t2m : xr.DataArray
         Validation temperature time series.
     sorted_temp : xr.DataArray
-        Sorted calibration temperatures (monotonic along 'time').
+        Sorted calibration temperatures along the calibration dimension.
     cdf_vals : xr.DataArray
         CDF probabilities corresponding to sorted_temp.
 
@@ -143,8 +145,8 @@ def match_cdf(
         validation_t2m,
         sorted_temp,
         cdf_vals,
-        input_core_dims=[["time"], ["time"], ["time"]],
-        output_core_dims=[["time"]],
+        input_core_dims=[[validation_dim], [calibration_dim], [calibration_dim]],
+        output_core_dims=[[validation_dim]],
         vectorize=True,
         dask="parallelized",
         output_dtypes=[float],

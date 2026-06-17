@@ -3,14 +3,17 @@ from pathlib import Path
 # I/O paths
 PATH = Path(__file__).resolve().parents[4]
 RAW = PATH / "raw_data"
+PERIOD_NAME = "STARTYEAR_ENDYEAR"
 CALIB_PATH = RAW / "temp_max_Brazil_1961-1990.nc"
-ZARR_R = RAW / "r_prev_STARTYEAR-ENDYEAR" / "zarr_store_humidity_br_STARTYEAR-ENDYEAR"
-ZARR_T2M = RAW / "t2m_prev_STARTYEAR-ENDYEAR" / "zarr_store_t2m_br_STARTYEAR-ENDYEAR"
+ZARR_R = RAW / f"r_prev_{PERIOD_NAME}" / f"zarr_store_humidity_br_{PERIOD_NAME}"
+ZARR_T2M = RAW / f"t2m_prev_{PERIOD_NAME}" / f"zarr_store_t2m_br_{PERIOD_NAME}"
 
 RESULT_ROOT = PATH / "spatial" / "results"
-RESULT_XHWI = RESULT_ROOT / "xhwi_era5_STARTYEAR-ENDYEAR_br_month_{m}_zarr_store.zarr"  # Calculated Index Hourly
-RESULT_XHWI_DIARY_INDPROD = RESULT_ROOT / "xhwi_era5_STARTYEAR-ENDYEAR_br_diary_ind_prod_{m}_zarr_store.zarr"
-RESULT_XHWI_MONTH_INDPROD = RESULT_ROOT / "xhwi_era5_STARTYEAR-ENDYEAR_br_month_ind_prod_{m}_zarr_store.zarr"
+RESULT_XHWI = RESULT_ROOT / f"xhwi_era5_{PERIOD_NAME}_br_month_{{m}}_zarr_store.zarr"  # Calculated Index Hourly
+RESULT_XHWI_DIARY_INDPROD = RESULT_ROOT / f"xhwi_era5_{PERIOD_NAME}_br_diary_ind_prod_{{m}}_zarr_store.zarr"
+RESULT_XHWI_MONTH_INDPROD = RESULT_ROOT / f"xhwi_era5_{PERIOD_NAME}_br_month_ind_prod_{{m}}_zarr_store.zarr"
+RESULT_MONTHLY_COMBINED = RESULT_ROOT / f"xhwi_era5_{PERIOD_NAME}_br_monthly_combined.nc"
+RESULT_DAILY_COMBINED = RESULT_ROOT / f"xhwi_era5_{PERIOD_NAME}_br_daily_combined.nc"
 
 # Dask / compute
 DASK_SCHEDULER = "threads"   # "threads" | "processes"

@@ -171,9 +171,9 @@ The processing chain follows this general logic:
 
 Expected outputs include:
 
-- ``xhwi_era5_1950-2024_br_month_{m}_zarr_store.zarr``
-- ``xhwi_era5_1950-2024_br_diary_ind_prod_{m}_zarr_store.zarr``
-- ``xhwi_era5_1950-2024_br_month_ind_prod_{m}_zarr_store.zarr``
+- ``xhwi_era5_STARTYEAR_ENDYEAR_br_month_{m}_zarr_store.zarr``
+- ``xhwi_era5_STARTYEAR_ENDYEAR_br_diary_ind_prod_{m}_zarr_store.zarr``
+- ``xhwi_era5_STARTYEAR_ENDYEAR_br_month_ind_prod_{m}_zarr_store.zarr``
 - combined daily NetCDF
 - combined monthly NetCDF
 

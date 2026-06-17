@@ -15,7 +15,14 @@ from dask.diagnostics import ProgressBar
 
 from src.features.aggregations import monthly_indicators
 from src.utils.encoding import clear_chunks_encoding
-from src.config.settings import RESULT_ROOT, CHUNKS, DAILY_VARIABLE
+from src.config.settings import (
+    RESULT_ROOT,
+    RESULT_XHWI,
+    RESULT_MONTHLY_COMBINED,
+    RESULT_DAILY_COMBINED,
+    CHUNKS,
+    DAILY_VARIABLE,
+)
 from src.utils.logger import get_logger
 
 logger = get_logger("postprocess_aggregations")
@@ -36,7 +43,7 @@ def aggregate_single_month(month_idx: int, results_dir: Path):
     tuple of (xr.Dataset | None, xr.Dataset | None)
         (daily_dataset, monthly_dataset)
     """
-    path = results_dir / f"xhwi_era5_1950-2024_br_month_{month_idx}_zarr_store.zarr"
+    path = Path(str(RESULT_XHWI).format(m=month_idx))
 
     if not path.exists():
         logger.warning(f"⚠️ File not found for month {month_idx}: {path}")
@@ -138,7 +145,7 @@ def monthly_main():
     logger.info("🚀 Starting postprocessing of XHWI results")
 
     results_dir = Path(RESULT_ROOT)
-    output_nc = results_dir / "xhwi_era5_1950-2024_br_monthly_combined.nc"
+    output_nc = Path(RESULT_MONTHLY_COMBINED)
 
     combine_monthly_to_netcdf(results_dir, output_nc)
 
@@ -149,7 +156,7 @@ def daily_main():
     logger.info("🚀 Starting postprocessing of XHWI results")
 
     results_dir = Path(RESULT_ROOT)
-    output_nc = results_dir / "xhwi_era5_1950-2024_br_daily_combined.nc"
+    output_nc = Path(RESULT_DAILY_COMBINED)
 
     combine_daily_to_netcdf(results_dir, output_nc)
 
