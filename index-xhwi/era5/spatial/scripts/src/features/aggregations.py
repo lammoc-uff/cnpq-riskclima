@@ -1,18 +1,18 @@
 import xarray as xr
 
-# variáveis descartáveis caso apareçam no Dataset
+# Disposable variables to drop if they appear in the Dataset
 DROP_AFTER_XHWI = ["Coef", "tpe", "Target100", "Target", "cdf", "sorted_temp", "t2m_max_cdf"]
 
-# alvo ~200 MB/var em float32 no seu grid 163x165 → time=1944 (=81*24)
+# Target ~200 MB/variable in float32 on the 163x165 grid: time=1944 (=81*24)
 TIME_CHUNK = 1944
-WIN_DAY = 24  # 24 horas → 1 dia
+WIN_DAY = 24  # 24 hours = 1 day
 
 def daily_indicators(ds: xr.Dataset) -> xr.Dataset:
     """
-    Gera agregações DIÁRIAS a partir de dados horários/sub-diários.
-    - Diary_Ind_Prod = (#horas com XHWI != 0) × (soma diária de XHWI)
-    - t2m_max        = máximo diário de t2m
-    - r_mean         = média diária de r
+    Generate daily aggregations from hourly or sub-daily data.
+    - Diary_Ind_Prod = (#hours with XHWI != 0) x (daily sum of XHWI)
+    - t2m_max        = daily maximum of t2m
+    - r_mean         = daily mean of r
     """
 
     required = ["XHWI", "t2m", "r"]
@@ -20,20 +20,20 @@ def daily_indicators(ds: xr.Dataset) -> xr.Dataset:
     if missing:
         raise KeyError(f"Missing required variables for daily indicators: {missing}")
 
-    # trabalhe só com o necessário
+    # Work only with the variables needed for the aggregation.
     needed = required
     ds = ds[needed].sortby("time")
-    # chunk: tempo em múltiplo de 24; espacial inteiro (pequeno)
+    # Time chunk is a multiple of 24; keep the small spatial grid whole.
     ds = ds.chunk({"time": TIME_CHUNK, "latitude": -1, "longitude": -1}).unify_chunks()
-    # máscaras e agregações via coarsen (mais leve que resample p/ passo inteiro)
+    # Use coarsen for masks and aggregations; it is lighter than resample for fixed steps.
     hwi_mask = (ds["XHWI"] != 0).astype("int16")
-    horas_hwi_dif_zero = hwi_mask.coarsen(time=WIN_DAY, boundary="trim").sum()
+    hours_hwi_nonzero = hwi_mask.coarsen(time=WIN_DAY, boundary="trim").sum()
     sum_diary_hwi      = ds["XHWI"].coarsen(time=WIN_DAY, boundary="trim").sum()
     t2m_max            = ds["t2m"].coarsen(time=WIN_DAY, boundary="trim").max()
     r_mean             = ds["r"].coarsen(time=WIN_DAY, boundary="trim").mean()
     ds_daily = xr.Dataset(
         data_vars=dict(
-            Diary_Ind_Prod = (horas_hwi_dif_zero * sum_diary_hwi),
+            Diary_Ind_Prod = (hours_hwi_nonzero * sum_diary_hwi),
             t2m_max        = t2m_max,
             r_mean         = r_mean,
         )
@@ -46,11 +46,11 @@ def daily_indicators(ds: xr.Dataset) -> xr.Dataset:
 
 def monthly_indicators(ds_hourly: xr.Dataset):
     """
-    Agrega DIÁRIO → MENSAL.
-    - Monthly_Ind_Prod = soma mensal de Diary_Ind_Prod
-    - t2m_max          = máximo mensal de t2m_max
-    - r_mean           = média mensal de r_mean
-    Retorna (ds_daily, ds_monthly), ambos lazy.
+    Aggregate daily indicators into monthly indicators.
+    - Monthly_Ind_Prod = monthly sum of Diary_Ind_Prod
+    - t2m_max          = monthly maximum of t2m_max
+    - r_mean           = monthly mean of r_mean
+    Returns (ds_daily, ds_monthly), both lazy.
     """
     ds_daily = daily_indicators(ds_hourly)
     ds_monthly = xr.Dataset(
@@ -60,10 +60,10 @@ def monthly_indicators(ds_hourly: xr.Dataset):
             r_mean           = ds_daily["r_mean"].resample(time="MS").mean(),
         )
     )
-    # limpeza só se essas variáveis aparecerem (normalmente não estarão aqui)
+    # Clean only if these variables appear; normally they are not present here.
     to_drop = [v for v in DROP_AFTER_XHWI if v in ds_monthly.variables]
     if to_drop:
         ds_monthly = ds_monthly.drop_vars(to_drop)
-    #ds_monthly = ds_monthly.dropna(dim="time", how="any") descomentar porque o processo gera NA.
-    #Pode ser que não tenha ram, porém
+    # Uncomment if generated NaNs need to be removed and memory is sufficient.
+    # ds_monthly = ds_monthly.dropna(dim="time", how="any")
     return ds_daily, ds_monthly

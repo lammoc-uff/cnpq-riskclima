@@ -27,7 +27,7 @@ from src.utils.logger import get_logger
 
 logger = get_logger("postprocess_aggregations")
 
-# boas configs dask para esse padrão de tarefa
+# Dask settings tuned for this task pattern
 dask.config.set({
                  "array.slicing.split_large_chunks": False,
                  "optimization.fuse.active": True,
@@ -50,19 +50,19 @@ def aggregate_single_month(month_idx: int, results_dir: Path):
         return None, None
 
     logger.info(f"📂 Opening hourly dataset for month {month_idx}: {path}")
-    # consolidated=True acelera muito a leitura de metadados
+    # consolidated=True greatly speeds up metadata reads.
     ds_hourly = xr.open_zarr(path, consolidated=True).unify_chunks()
 
     logger.info(f"→ Aggregating daily and monthly indicators for month {month_idx}")
     ds_daily, ds_monthly = monthly_indicators(ds_hourly)
     logger.info(f"→ daily and monthly indicators for month {month_idx} aggregated")
     
-    # cleaning memory
+    # Release memory before preparing output chunks.
     del ds_hourly
     gc.collect()
 
-    # defina chunk final só antes de gravar/concatenar
-    # se quiser usar CHUNKS do seu settings, mantenha:
+    # Define final chunks only before writing or concatenating.
+    # Keep CHUNKS from settings if that policy is desired.
     ds_daily   = clear_chunks_encoding(ds_daily).chunk(CHUNKS)
     ds_monthly = clear_chunks_encoding(ds_monthly).chunk(CHUNKS)
 
@@ -91,8 +91,8 @@ def combine_monthly_to_netcdf(results_dir: Path, output_nc: Path):
     logger.info("🔗 Concatenating all monthly datasets along time dimension")
     combined = xr.concat(monthly_datasets, dim="time").sortby("time")
 
-    # streaming-friendly: chunks pequenos no tempo ajudam no to_netcdf
-    # (se CHUNKS já definir isso, pode pular a linha abaixo)
+    # Streaming-friendly: small time chunks help to_netcdf.
+    # Skip the line below if CHUNKS already defines this.
     combined = combined.chunk({"time": 120})
 
     combined = clear_chunks_encoding(combined)
@@ -101,7 +101,7 @@ def combine_monthly_to_netcdf(results_dir: Path, output_nc: Path):
     output_nc.parent.mkdir(parents=True, exist_ok=True)
 
     with ProgressBar():
-        combined.to_netcdf(output_nc)  # compute ocorre aqui
+        combined.to_netcdf(output_nc)  # compute happens here
 
     logger.info("✅ Postprocessing completed successfully.")
 
@@ -126,8 +126,8 @@ def combine_daily_to_netcdf(results_dir: Path, output_nc: Path):
     logger.info("🔗 Concatenating all daily datasets along time dimension")
     combined = xr.concat(daily_datasets, dim="time").sortby("time")
 
-    # streaming-friendly: chunks pequenos no tempo ajudam no to_netcdf
-    # (se CHUNKS já definir isso, pode pular a linha abaixo)
+    # Streaming-friendly: small time chunks help to_netcdf.
+    # Skip the line below if CHUNKS already defines this.
     combined = combined.chunk({"time": 120})
 
     combined = clear_chunks_encoding(combined)
@@ -136,7 +136,7 @@ def combine_daily_to_netcdf(results_dir: Path, output_nc: Path):
     output_nc.parent.mkdir(parents=True, exist_ok=True)
 
     with ProgressBar():
-        combined.to_netcdf(output_nc)  # compute works in here
+        combined.to_netcdf(output_nc)  # compute happens here
 
     logger.info("✅ Postprocessing completed successfully.")
 

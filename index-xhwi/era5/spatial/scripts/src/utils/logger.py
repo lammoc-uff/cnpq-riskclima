@@ -9,7 +9,7 @@ def get_logger(name: str, log_dir: str = None):
     """
     
     if log_dir is None:
-        base = Path(__file__).resolve().parents[3]  # raiz do projeto
+        base = Path(__file__).resolve().parents[3]  # project root
         log_dir = base / "logs"
 
     os.makedirs(log_dir, exist_ok=True)
