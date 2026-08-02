@@ -19,6 +19,12 @@ venv/
 # Zip
 *.zip
 
+# Zarr
+*.zarr
+
+# NETCDF
+*.nc
+
 # Sistema
 .DS_Store
 Thumbs.db
