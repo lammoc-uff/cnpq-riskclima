@@ -4,7 +4,7 @@ Project website: ``https://riskclima.com.br``
 
 This repository organizes the main computational components of the ``RiskClima`` project.
 
-## What the project does
+## RiskClima
 
 RiskClima is a project focused on the development of georeferenced maps that classify the areas of Brazil most vulnerable to climate extremes. The project also identifies the type of event associated with each region and the corresponding social, environmental, or socioenvironmental vulnerability.
 
@@ -15,7 +15,7 @@ Current components in this repository include:
 - ``cmip6-downloader`` — workflow for catalog comparison, filtering, download, preprocessing, and ensemble generation of CMIP6 datasets
 - ``index-xhwi`` — reference to the dedicated repository of the Extreme Heatwave Index
 
-## Why the project is useful
+## Project Utility
 
 RiskClima supports the generation of climate risk products relevant to droughts, floods, inundation, mass movements, heatwaves and human health impacts.
 
@@ -32,10 +32,10 @@ The project combines climate model outputs with socioenvironmental indicators, p
 ### Current components
 
 - ``cmip6-downloader``  
-  Tools for comparing AWS and Google CMIP6 catalogs, filtering target datasets, downloading selected members, preprocessing datasets, saving Zarr outputs, and building ensembles.
+  Tools for comparing AWS and Google CMIP6 catalogs from Pangeo, filtering target datasets, downloading selected members, preprocessing datasets, saving Zarr outputs, and building ensembles.
 
 - ``index-xhwi``  
-  Reference directory pointing to the dedicated XHWI repository used in the RiskClima workflow.
+  Reference directory to compute XHWI, the heatwave index, used in the RiskClima workflow.
 
 ### Suggested workflow
 
@@ -52,7 +52,7 @@ Users can get help through:
 - the documentation available inside each subproject
 - direct contact with the project coordination
 
-## Who maintains and contributes to the project
+## Maintainers of RiskClima
 
 RiskClima is developed by a multidisciplinary team working on climate modeling, hydrology, socioenvironmental vulnerability, risk analysis, and applied data science.
 
@@ -65,7 +65,6 @@ According to the official project description, RiskClima aims to produce georefe
 ## Official contact
 
 - Email: ``mcataldi@id.uff.br``
-- Phone: ``(21) 2629-7604``
 
 ## Website
 
