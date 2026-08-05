@@ -1,15 +1,5 @@
-# raw_data
+# ERA5 calibration data
 
-This directory stores the input datasets required to run the XHWI workflow.
+The expected calibration is `xhwi_era5_calib_t2m_max_1961-1990.nc`. It contains daily maximum 2 m temperature in degC for 1961-1990, with `calibration_time`, `lat`, and `lon` dimensions. The workflow derives it from hourly ERA5 `t2m` using non-overlapping 24-hour maxima.
 
-## Required files
-
-- ``temp_max_Brazil_1961-1990.nc`` — calibration dataset used to compute the reference temperature distribution and empirical cumulative distribution function ``CDF`` (daily maximum temperatures of a reference period)
-- ``r_prev_STARTYEAR_ENDYEAR/`` — directory containing ERA5 relative humidity files or the corresponding Zarr store
-- ``t2m_prev_STARTYEAR_ENDYEAR/`` — directory containing ERA5 2 m air temperature files or the corresponding Zarr store
-
-## Notes
-
-- The calibration file is used as the historical baseline for probability matching.
-- Temperature and humidity data are used as validation inputs for XHWI computation.
-- File and directory names should remain consistent with the paths defined in ``src/config/settings.py``.
+The canonical `.env` controls the path through `ERA5_CALIBRATION_FILE_TEMPLATE` and the period through `ERA5_CALIBRATION_START` and `ERA5_CALIBRATION_END`. The template must contain `{start_year}` and `{end_year}`. CLI options only provide temporary overrides where exposed by `--help`.

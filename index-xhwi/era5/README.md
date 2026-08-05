@@ -1,138 +1,78 @@
-# ERA5 XHWI Workflow
+# ERA5 XHWI workflow
 
-This directory contains the ERA5-specific implementation of the XHWI workflow.
+The ERA5 workflow reads hourly temperature and dewpoint from an authenticated ARCO Zarr store, derives relative humidity, and writes monthly accumulated XHWI as NetCDF.
 
-ERA5 is currently used as the reanalysis data source for computing hourly XHWI fields, daily indicators, monthly indicators, and combined NetCDF outputs over the configured spatial domain.
+Run all commands from `index-xhwi` after `make sync` and `.env` configuration.
 
-## Scope
+## Input contract
 
-The code in this module is responsible for:
+The configured consolidated Zarr store must provide:
 
-- preprocessing ERA5 2 m temperature files into a Zarr store
-- preprocessing ERA5 relative humidity files into a Zarr store
-- loading the calibration dataset used to build the empirical CDF
-- matching validation ERA5 temperature values to calibration probabilities
-- computing hourly XHWI values
-- generating daily and monthly indicator products
-- writing Zarr and NetCDF outputs
+- hourly `t2m` and `d2m` on a common grid
+- `time`, `lat`, and `lon` coordinates, or ERA5 names `valid_time`, `latitude`, and `longitude`
+- temperature and dewpoint in kelvin with `units` set to `K` or `kelvin`
+- coverage for the calibration period and requested application months
 
-## Directory Structure
+Set `CDSAPI_KEY` in `index-xhwi/.env` for remote access. `CDSAPI_CONFIG_FILE=~/.cdsapirc` provides the default fallback; an empty value disables it. The source and variable names are configured by `ERA5_ZARR_URL`, `ERA5_VARIABLE_T2M`, and `ERA5_VARIABLE_HUMIDITY`.
 
-```text
-era5/
-├── README.md
-├── raw_data/
-│   └── README.md
-└── spatial/
-    ├── results/
-    │   └── README.md
-    └── scripts/
-        ├── postprocess_aggregations.py
-        ├── preprocess_r.py
-        ├── preprocess_t2m.py
-        ├── run_all_months.py
-        ├── run_single_month.py
-        └── src/
-            ├── cdf/
-            ├── config/
-            ├── features/
-            ├── io/
-            ├── pipeline/
-            ├── preprocessing/
-            └── utils/
-```
+## Preserved scientific defaults
 
-## Inputs
+The package retains the notebook defaults:
 
-Expected input files and stores are defined in `spatial/scripts/src/config/settings.py`.
+- calibration period: 1961-01-01 through 1990-12-31
+- domain: latitude -70 to 20, longitude -120 to -5
+- months: 1 through 12
+- temperature threshold: values strictly above 32 degC
+- empirical CDF threshold: values above the grid-cell and calendar-month p95
+- minimum retained XHWI: values strictly above 0.001
+- relative humidity: derived from `t2m` and `d2m`, then clipped to 0-100%
+- calibration tasmax: maxima of non-overlapping 24-hour blocks, with an incomplete final block removed
+- PyTorch dtype and spatial blocks: float32 and 64 x 64 grid cells
 
-The current naming convention uses `STARTYEAR_ENDYEAR` as the period placeholder.
+The 32 °C temperature threshold and 95th-percentile CDF threshold are fixed by the methodology. `XHWI_MINIMUM` remains configurable; other source settings use the `ERA5_` fields in `.env.example`.
 
-Required inputs:
+## Four operations
 
-- `raw_data/temp_max_Brazil_1961-1990.nc`
-- `raw_data/t2m_prev_STARTYEAR_ENDYEAR/`
-- `raw_data/t2m_prev_STARTYEAR_ENDYEAR/zarr_store_t2m_br_STARTYEAR_ENDYEAR`
-- `raw_data/r_prev_STARTYEAR_ENDYEAR/`
-- `raw_data/r_prev_STARTYEAR_ENDYEAR/zarr_store_humidity_br_STARTYEAR_ENDYEAR`
+1. Create the reusable daily-maximum calibration:
 
-The calibration variable name is configured through `TARGET_CAL_VAR` in `settings.py`.
+   ```bash
+   make era5-calibration
+   ```
 
-## Configuration
+2. Process the configured months into one part file per month:
 
-Main configuration file:
+   ```bash
+   make era5-months
+   ```
 
-```text
-era5/spatial/scripts/src/config/settings.py
-```
+3. Concatenate all matching part files:
 
-Important settings include:
+   ```bash
+   make era5-concat
+   ```
 
-- `PERIOD_NAME`: period label used in input and output paths
-- `CALIB_PATH`: calibration NetCDF path
-- `ZARR_T2M`: preprocessed ERA5 temperature Zarr store
-- `ZARR_R`: preprocessed ERA5 relative humidity Zarr store
-- `TARGET_CAL_VAR`: variable name in the calibration dataset
-- `CHUNKS`: chunking policy used before writing outputs
-- `OVERWRITE`: whether existing outputs should be overwritten
-- `DAILY_VARIABLE`: postprocessing switch for daily or monthly combined NetCDF export
+4. Run calibration when missing, monthly processing, and concatenation:
 
-## Running The Workflow
+   ```bash
+   make era5-all
+   ```
 
-Run commands from:
+Pass command options through `ARGS`, for example:
 
 ```bash
-cd index-xhwi/era5/spatial/scripts
+make era5-months ARGS="--months-to-run 1 2 3 --device cuda --part-existing-policy overwrite"
+make era5-all ARGS="--zarr-url https://example/store.zarr --final-existing-policy overwrite"
+make era5-concat ARGS="--concat-input-policy all_matching_parts"
 ```
 
-Preprocess ERA5 temperature:
-
-```bash
-python preprocess_t2m.py
-```
-
-Preprocess ERA5 relative humidity:
-
-```bash
-python preprocess_r.py
-```
-
-Run all months:
-
-```bash
-python run_all_months.py
-```
-
-Run a single month:
-
-```bash
-python run_single_month.py 7
-```
-
-Postprocess Zarr outputs into a combined NetCDF file:
-
-```bash
-python postprocess_aggregations.py
-```
+`.env` is canonical. CLI options shown by `make era5-all ARGS="--help"` override the current invocation only; paths and templates are configured in `.env`.
 
 ## Outputs
 
-The ERA5 workflow writes outputs to:
+Defaults are relative to `index-xhwi`:
 
-```text
-era5/spatial/results/
-```
+- calibration: `era5/raw_data/xhwi_era5_calib_t2m_max_1961-1990.nc`
+- part files: `era5/results/monthly/parts/xhwi_era5_month_XX.nc`, one per calendar month
+- final file: `era5/results/monthly/xhwi_era5_monthly_ind_prod.nc`
 
-Expected output names:
-
-- `xhwi_era5_STARTYEAR_ENDYEAR_br_month_{m}_zarr_store.zarr`
-- `xhwi_era5_STARTYEAR_ENDYEAR_br_diary_ind_prod_{m}_zarr_store.zarr`
-- `xhwi_era5_STARTYEAR_ENDYEAR_br_month_ind_prod_{m}_zarr_store.zarr`
-- `xhwi_era5_STARTYEAR_ENDYEAR_br_daily_combined.nc`
-- `xhwi_era5_STARTYEAR_ENDYEAR_br_monthly_combined.nc`
-
-## Notes
-
-- This module is ERA5-specific. Other data sources, such as CMIP6, should have their own module-level implementation.
-- Shared project dependencies should live at the `index-xhwi` root when the project supports multiple data sources.
-- Large raw and result files should normally remain outside version control.
+The final variable is `xhwi_monthly_accumulated` on `time`, `lat`, and `lon`. Input data and outputs remain outside Git.

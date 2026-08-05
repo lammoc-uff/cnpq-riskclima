@@ -1,0 +1,42 @@
+name: index-xhwi
+
+on:
+  push:
+    paths:
+      - "index-xhwi/**"
+      - ".github/workflows/index-xhwi.yml"
+  pull_request:
+    paths:
+      - "index-xhwi/**"
+      - ".github/workflows/index-xhwi.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cpu:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: index-xhwi
+    env:
+      RISKCLIMA_XHWI_DEVICE: cpu
+      RISKCLIMA_XHWI_ERA5LAND_DEVICE: cpu
+      RISKCLIMA_XHWI_CMIP6_DEVICE: cpu
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.11.9"
+          enable-cache: true
+          cache-dependency-glob: index-xhwi/uv.lock
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Sync locked CPU environment
+        run: make sync EXTRA=cpu
+      - name: Run checks
+        run: make check EXTRA=cpu
+      - name: Build and test CPU image
+        run: make docker-test

@@ -1,196 +1,176 @@
-# XHWI for Spatial Data
+# RiskClima XHWI
 
-[![Python](https://img.shields.io/badge/python-3.10-blue.svg)]()
-[![xarray](https://img.shields.io/badge/xarray-workflow-green.svg)]()
-[![Dask](https://img.shields.io/badge/dask-enabled-orange.svg)]()
-[![Status](https://img.shields.io/badge/status-active-success.svg)]()
+This directory contains one Python package, `riskclima-xhwi`, with workflows for three data sources:
 
-**Paper reference:** 
+- [ERA5](era5/README.md)
+- [ERA5-Land](era5land/README.md)
+- [CMIP6](cmip6/README.md)
 
-- Development of a New Generalizable, Multivariate, and Physical-Body-Response-Based Extreme Heatwave Index
-- https://www.mdpi.com/2073-4433/15/12/1541
+The workflows calculate monthly accumulated Extreme Heatwave Index (XHWI) fields with xarray and spatial PyTorch blocks. The scientific reference is [Development of a New Generalizable, Multivariate, and Physical-Body-Response-Based Extreme Heatwave Index](https://www.mdpi.com/2073-4433/15/12/1541).
 
-## What the project does
+## Install
 
-This repository provides a reproducible workflow to compute the Extreme Heatwave Index XHWI for a given region of Earth.
+On Windows, use WSL2 with an Ubuntu or Debian distribution. Install Make and curl for your operating system:
 
-- In the current project, the code is used with ERA5 data.
-- The default computation domain corresponds to Brazil.
+Ubuntu, Debian, or WSL:
 
-Note: Implementation of the code for other data sources is currently under development.
-
-The pipeline:
-
-- preprocesses hourly ERA5 temperature and relative humidity data into Zarr stores
-- opens calibration and validation datasets
-- computes the empirical cumulative distribution function ``CDF`` from calibration temperature data (daily maximum temperatures of a reference period)
-- matches validation temperature values to calibration probabilities
-- computes the XHWI field
-- derives daily and monthly indicators
-- exports hourly, daily, and monthly outputs to Zarr and NetCDF
-
-## Why the project is useful
-
-This project is useful for climate and environmental studies that require a reproducible and modular workflow for heatwave diagnostics based on long-term reanalysis data.
-
-It supports:
-
-- climate monitoring
-- spatial analysis of heatwave conditions
-- reproducible scientific workflows
-- generation of outputs for undergraduate research, undergraduate theses, master's dissertations, doctoral theses, and scientific papers
-- development of downstream climate risk applications
-
-## How users can get started with the project
-
-### Repository structure
-
-```
-era5/
-├── raw_data/
-└── spatial/
-    ├── results/
-    └── scripts/
-        ├── postprocess_aggregations.py
-        ├── preprocess_r.py
-        ├── preprocess_t2m.py
-        ├── run_all_months.py
-        ├── run_single_month.py
-        └── src/
-            ├── cdf/
-            ├── config/
-            ├── features/
-            ├── io/
-            ├── pipeline/
-            ├── preprocessing/
-            └── utils/
+```bash
+sudo apt update
+sudo apt install -y make curl
 ```
 
-### Main scripts
+Fedora:
 
-- ``preprocess_t2m.py`` — preprocess ERA5 2 m temperature files into a Zarr store
-- ``preprocess_r.py`` — preprocess ERA5 relative humidity files into a Zarr store
-- ``run_all_months.py`` — run the full XHWI pipeline for all months
-- ``run_single_month.py`` — run the XHWI pipeline for one selected month
-- ``postprocess_aggregations.py`` — combine daily or monthly outputs into NetCDF files
+```bash
+sudo dnf install -y make curl
+```
 
-### Main modules
+Arch Linux:
 
-- ``src/cdf`` — empirical CDF computation and interpolation
-- ``src/config`` — project settings and file paths
-- ``src/features`` — XHWI computation and aggregated indicators
-- ``src/io`` — loaders and writers
-- ``src/pipeline`` — orchestration of the monthly and full pipeline
-- ``src/preprocessing`` — preprocessing and Zarr writing
-- ``src/utils`` — Dask client, logging, and encoding helpers
+```bash
+sudo pacman -S --needed make curl
+```
 
-### Environment setup
+macOS:
 
-This project uses:
+```bash
+xcode-select --install
+```
 
-- ``heatwaves_env.yml``
-- ``requirements.txt``
+Install [uv](https://docs.astral.sh/uv/) and verify the tools:
 
-Create the environment with Conda:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+make --version
+uv --version
+```
 
-    conda env create -f heatwaves_env.yml
-    conda activate heatwaves_env
+From the repository root, create the CPU environment and local configuration:
 
-Or install dependencies with pip:
+```bash
+cd index-xhwi
+make install EXTRA=cpu  # or EXTRA=gpu if gpu is available
+cp .env.example .env
+```
 
-    pip install -r requirements.txt
+Edit `.env`, then activate the environment:
 
-### Typical workflow
+```bash
+source .venv/bin/activate
+```
 
-1. Preprocess temperature files:
+`make install EXTRA=cpu` uses uv to install Python 3.12 and the CPU dependencies in `.venv`. Set `CDSAPI_KEY` in `.env`, or configure `CDSAPI_CONFIG_FILE`, before ERA5 or ERA5-Land runs. An empty `CDSAPI_CONFIG_FILE` disables file fallback.
 
-    python preprocess_t2m.py
+## Configure
 
-2. Preprocess relative humidity files:
+`.env` is the canonical operational configuration and `.env.example` contains every supported field. Every new execution reads `.env` again. Explicit CLI options temporarily override its values for that execution; omitted options preserve them.
 
-    python preprocess_r.py
+All fields already have values in the copied `.env`, but they are required by `Settings`. Review the ERA5 fields below as a practical starting point:
 
-3. Run the full monthly pipeline:
+```dotenv
+CDSAPI_KEY="replace_with_your_cds_api_key"
+CDSAPI_CONFIG_FILE=~/.cdsapirc
 
-    python run_all_months.py
+SCIENTIFIC_PROFILE=xhwi-2024-v1
+XHWI_MINIMUM=0.001
+NUMPY_DTYPE=float32
+NETCDF_ENGINE=netcdf4
+NETCDF_FORMAT=NETCDF4
+NETCDF_COMPRESSION=true
+NETCDF_COMPLEVEL=4
+NETCDF_DTYPE=float32
+NETCDF_FILL_VALUE=nan
+NETCDF_PROGRESS=true
 
-4. Or run a single month:
+ERA5_DEVICE=auto
+ERA5_TORCH_DTYPE=float32
+ERA5_LATITUDE_BLOCK_SIZE=64
+ERA5_LONGITUDE_BLOCK_SIZE=64
+ERA5_MONTHS_TO_RUN=[1,2,3,4,5,6,7,8,9,10,11,12]
+ERA5_CALIBRATION_START=1961-01-01
+ERA5_CALIBRATION_END=1990-12-31
+ERA5_APPLICATION_START=
+ERA5_APPLICATION_END=
+ERA5_CALIBRATION_POLICY=create_if_missing
+ERA5_PART_EXISTING_POLICY=skip
+ERA5_FINAL_EXISTING_POLICY=overwrite
+ERA5_CONCAT_INPUT_POLICY=all_matching_parts
+ERA5_CALIBRATION_FILE_TEMPLATE=era5/raw_data/xhwi_era5_calib_t2m_max_{start_year}-{end_year}.nc
+ERA5_PART_FILE_TEMPLATE=era5/results/monthly/parts/xhwi_{source}_month_{month}.nc
+ERA5_FINAL_FILE_TEMPLATE=era5/results/monthly/xhwi_era5_monthly_ind_prod.nc
+ERA5_DATASET_ID=ERA5_ARCO
+ERA5_SOURCE_ID=era5
+ERA5_ZARR_URL=https://arco.datastores.ecmwf.int/cadl-arco-geo-002/arco/reanalysis_era5_single_levels/sfc/geoChunked.zarr
+ERA5_ZARR_CHUNKS=auto
+ERA5_ZARR_CONSOLIDATED=true
+ERA5_REQUEST_TIMEOUT_SECONDS=600
+ERA5_VARIABLE_T2M=t2m
+ERA5_VARIABLE_T2M_ALIAS=t2m
+ERA5_VARIABLE_HUMIDITY=d2m
+ERA5_VARIABLE_HUMIDITY_ALIAS=d2m
+ERA5_LATITUDE_START=-70.0
+ERA5_LATITUDE_END=20.0
+ERA5_LONGITUDE_START=-120.0
+ERA5_LONGITUDE_END=-5.0
+```
 
-    python run_single_month.py
+Before the first run, review:
 
-5. Postprocess outputs into combined NetCDF files:
+- Credentials: set `CDSAPI_KEY`, or confirm `CDSAPI_CONFIG_FILE`; an empty config-file value disables fallback.
+- Source URL: verify `ERA5_ZARR_URL`, its chunk mode, consolidated-metadata setting, and request timeout.
+- Periods: confirm calibration dates and application bounds. Empty application bounds mean an open interval.
+- Months and domain: limit `ERA5_MONTHS_TO_RUN` and the latitude/longitude bounds to the intended run.
+- Policies: choose how calibration, existing monthly parts, the final file, and concatenation inputs are handled.
+- Paths: verify the calibration, part, and final templates. Relative paths resolve from `index-xhwi`.
+- Runtime: select the device, Torch dtype, and spatial block sizes appropriate for the machine.
 
-    python postprocess_aggregations.py
+Calibration policies are `require_existing`, `create_if_missing`, `rebuild`, and `in_memory`. The dedicated calibration command rejects `in_memory`. Part templates contain `{month}` and produce one file per calendar month. Changing `.env` affects the next process; a running process does not reload it. See the **[complete setup and usage guide](docs/getting-started.md)** for every field, including metadata, ERA5-Land, and CMIP6.
 
-## Where users can get help with your project
+## Run
 
-Users can get help by:
+Direct Python commands require the `.venv` activation shown above. Each source provides calibration, monthly processing, concatenation, and a complete workflow:
 
-- opening an issue in this repository
-- contacting the project maintainers
-- reviewing the configuration file in ``src/config/settings.py``
-- checking the log files generated during execution
+```bash
+python era5/scripts/make_calibration.py
+python era5/scripts/run_months.py
+python era5/scripts/concat_months.py
+python era5/scripts/run_all.py
 
-## Who maintains and contributes to the project
+python era5land/scripts/make_calibration.py
+python era5land/scripts/run_months.py
+python era5land/scripts/concat_months.py
+python era5land/scripts/run_all.py
 
-This project is maintained by:
+python cmip6/scripts/make_calibration.py
+python cmip6/scripts/run_months.py
+python cmip6/scripts/concat_months.py
+python cmip6/scripts/run_all.py
+```
 
-- ``lammoc-uff``
+The equivalent Make targets do not require virtual-environment activation:
 
-## Contributors:
+```bash
+make era5-calibration
+make era5-months
+make era5-concat
+make era5-all
 
-- Galves, V. L. V.; Cataldi, M.
+make era5land-calibration
+make era5land-months
+make era5land-concat
+make era5land-all
 
-## Scientific workflow overview
+make cmip6-calibration
+make cmip6-months
+make cmip6-concat
+make cmip6-all
+```
 
-The processing chain follows this general logic:
+For example, overwrite existing ERA5 monthly part files for months 1, 2, and 3:
 
-1. ERA5 temperature and humidity files are preprocessed into Zarr stores
-2. Calibration data are loaded from a NetCDF reference dataset
-3. Validation ERA5 temperature values are matched to calibration CDF probabilities
-4. The XHWI is computed from temperature exceedance and humidity
-5. Daily and monthly indicators are generated
-6. Outputs are written to Zarr and optionally combined into NetCDF
+```bash
+python era5/scripts/run_months.py --months-to-run 1 2 3 --part-existing-policy overwrite
+make era5-months ARGS="--months-to-run 1 2 3 --part-existing-policy overwrite"
+```
 
-## Input and output
-
-### Input
-
-- calibration NetCDF dataset (using daily maximum temperatures of a reference period)
-- ERA5 temperature Zarr store
-- ERA5 relative humidity Zarr store
-
-### Output
-
-- hourly XHWI Zarr files
-- daily indicator Zarr files
-- monthly indicator Zarr files
-- combined NetCDF outputs in ``era5/spatial/results``
-
-## Main outputs
-
-Expected outputs include:
-
-- ``xhwi_era5_STARTYEAR_ENDYEAR_br_month_{m}_zarr_store.zarr``
-- ``xhwi_era5_STARTYEAR_ENDYEAR_br_diary_ind_prod_{m}_zarr_store.zarr``
-- ``xhwi_era5_STARTYEAR_ENDYEAR_br_month_ind_prod_{m}_zarr_store.zarr``
-- combined daily NetCDF
-- combined monthly NetCDF
-
-## Citation
-
-If you use this repository in research products, please cite:
-
-- the reference paper of the XHWI index
-- this repository
-- ERA5 or the corresponding climate dataset used as input
-
-## Affiliation
-
-``Laboratory for Monitoring and Modeling of Climate Systems``
-
-``Federal Fluminense University``
-
-## Contact
-
-- ``mcataldi@id.uff.br``
+See the **[complete setup and usage guide](docs/getting-started.md)** for configuration, command options, file policies, and outputs.

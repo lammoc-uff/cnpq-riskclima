@@ -13,7 +13,7 @@ venv/
 # Logs
 *.log
 
-# Dados
+# Data
 *.csv
 
 # Zip
@@ -25,9 +25,30 @@ venv/
 # NETCDF
 *.nc
 
-# Sistema
+# System
 .DS_Store
 Thumbs.db
+*:Zone.Identifier
+
+# index-xhwi climate and array data
+/index-xhwi/**/*.grib
+/index-xhwi/**/*.grib2
+/index-xhwi/**/*.grb
+/index-xhwi/**/*.h5
+/index-xhwi/**/*.hdf5
+/index-xhwi/**/*.tif
+/index-xhwi/**/*.tiff
+/index-xhwi/**/*.npy
+/index-xhwi/**/*.npz
+/index-xhwi/**/raw_data/**
+/index-xhwi/**/results/**
+/index-xhwi/**/outputs/**
+/index-xhwi/*.sif
+
+# Keep placeholders and small, intentional test fixtures trackable.
+!/index-xhwi/**/.gitkeep
+!/index-xhwi/**/raw_data/README.md
+!/index-xhwi/tests/fixtures/**
 
 # IDEs
 .vscode/

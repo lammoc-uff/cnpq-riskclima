@@ -1,0 +1,95 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "riskclima-xhwi"
+version = "0.1.0"
+description = "Extreme Heatwave Index processing for RiskClima"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "cftime>=1.6",
+    "dask[array]>=2024.5",
+    "fsspec[http]>=2024.6",
+    "netCDF4>=1.7,<1.7.4",
+    "numpy>=1.26,<2",
+    "pydantic-settings>=2.6",
+    "scipy>=1.13",
+    "torch>=2.5",
+    "xarray>=2024.5",
+    "zarr>=2.18,<3",
+]
+
+[project.optional-dependencies]
+cpu = ["torch>=2.5"]
+gpu = ["torch>=2.5"]
+
+[dependency-groups]
+dev = [
+    "pyrefly>=0.29",
+    "pytest>=8.3",
+    "pytest-cov>=6",
+    "ruff>=0.9",
+]
+notebook = [
+    "ipykernel>=6.29",
+    "matplotlib>=3.9",
+]
+
+[project.scripts]
+riskclima-xhwi-era5-make-calibration = "riskclima_xhwi.scripts.era5.make_calibration:main"
+riskclima-xhwi-era5-run-months = "riskclima_xhwi.scripts.era5.run_months:main"
+riskclima-xhwi-era5-concat-months = "riskclima_xhwi.scripts.era5.concat_months:main"
+riskclima-xhwi-era5-run-all = "riskclima_xhwi.scripts.era5.run_all:main"
+riskclima-xhwi-era5land-make-calibration = "riskclima_xhwi.scripts.era5land.make_calibration:main"
+riskclima-xhwi-era5land-run-months = "riskclima_xhwi.scripts.era5land.run_months:main"
+riskclima-xhwi-era5land-concat-months = "riskclima_xhwi.scripts.era5land.concat_months:main"
+riskclima-xhwi-era5land-run-all = "riskclima_xhwi.scripts.era5land.run_all:main"
+riskclima-xhwi-cmip6-make-calibration = "riskclima_xhwi.scripts.cmip6.make_calibration:main"
+riskclima-xhwi-cmip6-run-months = "riskclima_xhwi.scripts.cmip6.run_months:main"
+riskclima-xhwi-cmip6-concat-months = "riskclima_xhwi.scripts.cmip6.concat_months:main"
+riskclima-xhwi-cmip6-run-all = "riskclima_xhwi.scripts.cmip6.run_all:main"
+
+[tool.uv]
+conflicts = [[{ extra = "cpu" }, { extra = "gpu" }]]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu128", extra = "gpu" },
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+extend-exclude = ["**/*.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "PTH", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]
+
+[tool.pyrefly]
+project-includes = ["src", "tests"]
+python-version = "3.12"
+search-path = ["src"]
+preset = "strict"
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["riskclima_xhwi"]
