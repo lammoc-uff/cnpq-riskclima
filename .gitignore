@@ -15,6 +15,7 @@ venv/
 
 # Data
 *.csv
+*.parquet
 
 # Zip
 *.zip
@@ -49,6 +50,15 @@ Thumbs.db
 !/index-xhwi/**/.gitkeep
 !/index-xhwi/**/raw_data/README.md
 !/index-xhwi/tests/fixtures/**
+
+# index-spi climate and array data
+/index-spi/**/*.sif
+/index-spi/**/raw_data/**
+/index-spi/**/results/**
+/index-spi/**/outputs/**
+
+!/index-spi/**/.gitkeep
+!/index-spi/**/README.md
 
 # IDEs
 .vscode/
