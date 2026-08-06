@@ -1,11 +1,9 @@
-# notebooks
+# Notebooks
 
-This directory stores exploratory notebooks related to the development and testing of the CMIP6 downloader workflow.
+These notebooks are exploratory and non-operational. Run them with the working directory set to either the project root or `notebooks/`; each notebook derives the project root from `Path.cwd()` and uses project-relative `catalog/` and `downloads/` paths.
 
 ## Notes
 
 - These notebooks are not part of the main operational pipeline.
-- They may contain exploratory analyses, intermediate tests, or legacy experiments.
-- The main workflow should be executed through the scripts in ``scripts/``.
-- Keep only notebooks that remain relevant to the current project.
-- Obsolete notebooks should be removed or moved to an archive folder.
+- The main workflow is executed through the scripts in `scripts/`.
+- Notebook execution is not part of tests or operational processing.

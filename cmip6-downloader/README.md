@@ -1,167 +1,144 @@
 # CMIP6 Downloader
 
-This repository provides a reproducible workflow to compare CMIP6 cloud catalogs, filter target datasets, download selected members, preprocess them, save them as local Zarr stores, and optionally build ensemble products.
+This directory contains a Python workflow that resolves AWS and Google CMIP6 catalogs, downloads the selected assets, standardizes time and spatial coordinates, and writes local Zarr v2 member and ensemble stores.
 
-## What the project does
+The catalog union keeps assets available from either provider. AWS wins equivalent-asset ties by default, while Google remains available for exclusive assets and unambiguous fallback stores.
 
-This project:
+## Install
 
-- compares AWS and Google CMIP6 catalogs
-- filters catalog entries by model, experiment, table, variable, and grid
-- opens remote CMIP6 Zarr datasets through ``fsspec``
-- preprocesses time coordinates and spatial coordinates
-- crops supported datasets to Brazil / extended South America
-- saves each member incrementally in local Zarr blocks
-- builds stacked and mean ensemble outputs
+On Windows, use WSL2 with an Ubuntu or Debian distribution. Install Make and curl for your operating system:
 
-The catalog comparison script writes filtered catalogs and difference tables, while the main download script processes datasets group by group using parallel threads and writes logs for each group and for the full run. :contentReference[oaicite:5]{index=5} :contentReference[oaicite:6]{index=6} :contentReference[oaicite:7]{index=7} :contentReference[oaicite:8]{index=8}
+Ubuntu, Debian, or WSL:
 
-## Why the project is useful
-
-This project is useful when you need an organized and reproducible way to acquire and preprocess CMIP6 data from cloud-hosted catalogs for climate analyses.
-
-It is particularly useful for:
-
-- screening CMIP6 availability across providers
-- reducing download scope through explicit metadata filters
-- standardizing calendars and coordinates before analysis
-- saving large datasets safely in blocks to avoid memory overload
-- creating ensemble datasets for downstream workflows
-
-The configuration centralizes source models, experiments, table IDs, variables, chunk size, calendar conversion, grouping fields, ensemble mode, and output naming. :contentReference[oaicite:9]{index=9} :contentReference[oaicite:10]{index=10} :contentReference[oaicite:11]{index=11} :contentReference[oaicite:12]{index=12}
-
-## How users can get started with the project
-
-### Repository structure
-
-```
-    cmip6-downloader/
-    ├── catalog/
-    ├── downloads/
-    ├── filtered_catalog/
-    ├── notebooks/
-    ├── scripts/
-    ├── env-cmip6-downloader.yml
-    └── requirements.txt
+```bash
+sudo apt update
+sudo apt install -y make curl
 ```
 
-### Main scripts
+Fedora:
 
-- ``scripts/compare_catalogs.py`` — compares AWS and Google catalogs and writes filtered and difference CSV files
-- ``scripts/run_download.py`` — runs the download and preprocessing workflow group by group
+```bash
+sudo dnf install -y make curl
+```
 
-### Main modules
+Arch Linux:
 
-- ``src/config.py`` — project paths, filters, grouping rules, chunking, and ensemble settings
-- ``src/compare.py`` — catalog comparison logic
-- ``src/downloader.py`` — main downloader class and grouped processing workflow
-- ``src/filters.py`` — metadata normalization, filtering, and grouping helpers
-- ``src/preprocessing.py`` — time cleanup, coordinate adjustment, and spatial cropping
-- ``src/writer.py`` — block-wise Zarr writing and ensemble construction
+```bash
+sudo pacman -S --needed make curl
+```
 
-### Environment setup
+macOS:
 
-Create the environment with Conda:
+```bash
+xcode-select --install
+```
 
-    conda env create -f env-cmip6-downloader.yml
-    conda activate env-cmip6-downloader
+Install [uv](https://docs.astral.sh/uv/) and verify the tools:
 
-Or install dependencies with pip:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+make --version
+uv --version
+```
 
-    pip install -r requirements.txt
+From the repository root, create the environment and local configuration:
 
-The environment is centered on Python 3.13 and packages such as ``xarray``, ``zarr``, ``intake-esm``, ``fsspec``, ``s3fs``, ``gcsfs``, ``netcdf4``, ``numpy``, ``pandas``, and ``scipy``. :contentReference[oaicite:13]{index=13}
+```bash
+cd cmip6-downloader
+make install
+cp .env.example .env
+```
 
-### Typical workflow
+Edit `.env`, then activate the environment:
 
-1. Place the CMIP6 catalog CSV files inside ``catalog/``.
-2. Edit ``scripts/src/config.py`` to define:
-   - ``source_ids``
-   - ``experiment_ids``
-   - ``table_ids``
-   - ``variable_ids``
-3. Run the catalog comparison:
+```bash
+source .venv/bin/activate
+```
 
-    python scripts/compare_catalogs.py
+`make install` uses uv to install Python 3.12 and the locked runtime and development dependencies in `.venv`. Notebook support is optional:
 
-4. Run the grouped download and preprocessing workflow:
+```bash
+uv sync --group notebook
+```
 
-    python scripts/run_download.py
+## Configure
 
-5. Inspect outputs under ``downloads/``.
+`.env` is the canonical operational configuration and `.env.example` contains every supported field. Every new execution reads `.env` again. Explicit script options temporarily override its values for that execution; omitted options preserve them.
 
-The current configuration targets selected CMIP6 models, experiments, table frequencies, and variables, and stores per-member outputs as ``member-{member_id}.zarr``. It can also generate ``ensemble_all.zarr`` and ``ensemble_mean.zarr``. :contentReference[oaicite:14]{index=14} :contentReference[oaicite:15]{index=15} :contentReference[oaicite:16]{index=16} :contentReference[oaicite:17]{index=17}
+All fields already have values in the copied `.env`, but they are required by `Settings`. Review these fields before the first run:
 
-## Where users can get help with your project
+```dotenv
+CATALOG_AWS_PATH=catalog/pangeo-cmip6_aws.csv
+CATALOG_GOOGLE_PATH=catalog/pangeo-cmip6_google.csv
+FILTERED_CATALOG_DIR=filtered_catalog
+PREFERRED_CATALOG_PATH=filtered_catalog/catalog_preferred.csv
+DOWNLOADS_DIR=downloads
 
-Users can get help by:
+PROVIDER_PRIORITY=["aws","google"]
+AWS_ANONYMOUS=true
+GOOGLE_ANONYMOUS=true
 
-- opening an issue in this repository
-- reviewing the configuration in ``scripts/src/config.py``
-- checking the CSV logs written to each group directory and to the global download directory
-- inspecting the filtered catalogs and catalog difference outputs
+SOURCE_IDS=["MIROC6","CMCC-ESM2","ACCESS-CM2","BCC-CSM2-MR","INM-CM5-0","EC-Earth3-Veg"]
+EXPERIMENT_IDS=["historical","ssp245","ssp585"]
+TABLE_IDS=["day","3hr","Omon"]
+VARIABLE_IDS=["tas","tasmax","huss","pr","ua","va","zg","wap","tos"]
+GRID_LABELS=["gn","gr","gr1"]
+MEMBER_IDS=[]
 
-The workflow writes a per-group catalog, a per-group log, and a global log file. :contentReference[oaicite:18]{index=18} :contentReference[oaicite:19]{index=19} :contentReference[oaicite:20]{index=20}
+HISTORICAL_START=1950-01-01
+HISTORICAL_END=2014-12-31
+HISTORICAL_EXPERIMENTS=["historical"]
+FUTURE_EXPERIMENTS=["ssp245","ssp585"]
+FUTURE_START=2015-01-01
+FUTURE_END=2050-12-31
 
-## Who maintains and contributes to the project
+LATITUDE_MIN=-70
+LATITUDE_MAX=20
+LONGITUDE_MIN=-120
+LONGITUDE_MAX=-5
+SPATIAL_SUBSET=true
+EXCLUDED_VARIABLES=["tos"]
+CURVILINEAR_POLICY=keep_global
 
-This project is maintained by:
+MAX_WORKERS=4
+TIME_CHUNK_SIZE=5760
+OPEN_CHUNKS={}
+EXISTING_POLICY=skip
+ENSEMBLE_MODE=both
+ENSEMBLE_ALIGNMENT=inner
+CLEANUP_MEMBERS=true
+MEMBER_STORE_TEMPLATE=member-{member_id}.zarr
+```
 
-- ``lammoc-uff``
+Before the first run, review:
 
-Contributors may include:
+- Catalogs: place the AWS and Google CSV files at the configured paths and verify their schemas.
+- Filters: confirm models, experiments, tables, variables, grids, and optional members.
+- Periods: empty historical bounds keep all available historical dates; future experiments use the configured interval.
+- Domain: confirm latitude and longitude bounds. Variables listed in `EXCLUDED_VARIABLES` remain global.
+- Runtime: select worker and chunk sizes suitable for the machine.
+- Policies: choose how existing stores, ensembles, and member cleanup should behave.
+- Paths: verify catalog, filtered catalog, download, log, and store names. Relative paths resolve from `cmip6-downloader`.
 
-- Galves, V. L. V.; Sancho, L.; da Fonseca Aguiar, L.; Esposte Coutinho, P.; Guida, A.; Cataldi, M. 2025.
+`CLEANUP_MEMBERS=true` removes multiple member stores only after every requested ensemble has been written and validated. A sole member is always preserved. Outputs are Zarr v2 stores; this format is an application invariant rather than an `.env` option. See the **[complete setup and usage guide](docs/getting-started.md)** for every field, provider resolution, temporal coverage rules, and file policies.
 
-## Scientific and technical overview
+## Run
 
-The workflow follows this logic:
+Direct Python commands require the `.venv` activation shown above. Resolve the provider catalogs before starting the download:
 
-1. load the selected catalog
-2. normalize and filter CMIP6 metadata
-3. group entries by ``source_id``, ``experiment_id``, ``table_id``, ``variable_id``, and ``grid_label``
-4. open each remote Zarr store
-5. preprocess time and coordinates
-6. crop supported datasets to Brazil / extended South America
-7. save local member datasets in time-sliced blocks
-8. align members and build ensemble outputs
+```bash
+python scripts/compare_catalogs.py
+python scripts/run_download.py
+```
 
-Time preprocessing converts ``CFTimeIndex`` calendars, removes duplicate timestamps, and crops SSP datasets to the 2015–2050 window when applicable. Coordinate preprocessing adjusts longitudes to ``[-180, 180]``, sorts one-dimensional latitude and longitude coordinates, and skips special handling for ``tos``. :contentReference[oaicite:21]{index=21}
+The equivalent Make targets do not require virtual-environment activation:
 
-## Input and output
+```bash
+make compare
+make download
+make all
+```
 
-### Input
+`make all` runs catalog comparison followed by the download. The workflow writes the preferred catalog and decision reports under `filtered_catalog/`, then writes member stores, ensembles, group catalogs, and logs under `downloads/`.
 
-- ``catalog/pangeo-cmip6_aws.csv``
-- ``catalog/pangeo-cmip6_google.csv``
-
-### Output
-
-Typical outputs include:
-
-- filtered catalog CSV files
-- catalog difference CSV files
-- per-group catalog and log files
-- per-member local Zarr datasets
-- ``ensemble_all.zarr``
-- ``ensemble_mean.zarr``
-- global download log
-
-## Notes on notebooks
-
-The notebooks currently appear to be exploratory or legacy materials rather than part of the operational workflow.
-
-Suggested policy:
-
-- keep only notebooks that document experiments still relevant to the project
-- remove obsolete notebooks or move them to an archival folder
-- avoid treating notebooks as the main execution interface when equivalent scripts already exist
-
-## Affiliation
-
-``Laboratory for Monitoring and Modeling of Climate Systems``
-``Federal Fluminense University``
-
-## Contact
-
-``mcataldi@id.uff.br``
+See the **[complete setup and usage guide](docs/getting-started.md)** for configuration, provider fallback, outputs, Docker, and troubleshooting. See the **[Apptainer guide](docs/apptainer.md)** for HPC execution.

@@ -1,0 +1,17 @@
+.git
+.venv
+.env
+__pycache__
+.pytest_cache
+.ruff_cache
+.pyrefly
+.coverage
+htmlcov
+*.pyc
+*.pyo
+*.sif
+catalog
+filtered_catalog
+downloads
+notebooks
+docs
