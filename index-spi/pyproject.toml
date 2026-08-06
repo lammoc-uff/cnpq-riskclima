@@ -1,0 +1,62 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "riskclima-spi"
+version = "0.1.0"
+description = "Standardized Precipitation Index processing for RiskClima"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "cdsapi>=0.7",
+    "cftime>=1.6",
+    "dask[array]>=2024.5",
+    "netCDF4>=1.7",
+    "numpy>=1.26,<2",
+    "pydantic-settings>=2.6",
+    "scipy>=1.13",
+    "xarray>=2024.5",
+    "xclim>=0.55",
+    "zarr>=2.18,<3",
+]
+
+[dependency-groups]
+dev = [
+    "pyrefly>=0.29",
+    "pytest>=8.3",
+    "pytest-cov>=6",
+    "ruff>=0.9",
+]
+notebook = ["ipykernel>=6.29"]
+
+[project.scripts]
+riskclima-spi-cmip6 = "riskclima_spi.scripts.run_spi_cmip6:main"
+riskclima-spi-era5 = "riskclima_spi.scripts.run_spi_era5:main"
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests", "cmip6/scripts", "era5/scripts"]
+extend-exclude = ["**/*.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "PTH", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]
+
+[tool.pyrefly]
+project-includes = ["src", "tests", "cmip6/scripts", "era5/scripts"]
+python-version = "3.12"
+search-path = ["src"]
+preset = "strict"
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["riskclima_spi"]
