@@ -14,6 +14,7 @@ Current components in this repository include:
 
 - ``cmip6-downloader`` — workflow for catalog comparison, filtering, download, preprocessing, and ensemble generation of CMIP6 datasets
 - ``index-xhwi`` — reference to the dedicated repository of the Extreme Heatwave Index
+- ``index-spi`` — Standardized Precipitation Index workflows for CMIP6 and ERA5 precipitation
 
 ## Project Utility
 
@@ -27,21 +28,26 @@ The project combines climate model outputs with socioenvironmental indicators, p
 
     cnpq-riskclima/
     ├── cmip6-downloader/
-    └── index-xhwi/
+    ├── index-xhwi/
+    └── index-spi/
 
 ### Current components
 
-- ``cmip6-downloader``  
+- ``cmip6-downloader``
   Tools for comparing AWS and Google CMIP6 catalogs from Pangeo, filtering target datasets, downloading selected members, preprocessing datasets, saving Zarr outputs, and building ensembles.
 
-- ``index-xhwi``  
+- ``index-xhwi``
   Reference directory to compute XHWI, the heatwave index, used in the RiskClima workflow.
+
+- ``index-spi``
+  Workflows to compute SPI from preprocessed CMIP6 precipitation or locally cached and CDS-acquired ERA5 monthly precipitation.
 
 ### Suggested workflow
 
 1. Use ``cmip6-downloader`` to identify, filter, and prepare the climate model datasets required by the project.
 2. Use the dedicated ``XHWI`` repository to compute the Extreme Heatwave Index.
-3. Integrate outputs with other RiskClima components for hazard, vulnerability, and risk mapping.
+3. Use ``index-spi`` to compute the Standardized Precipitation Index from prepared CMIP6 data or ERA5 data acquired through its local-first CDS workflow.
+4. Integrate outputs with other RiskClima components for hazard, vulnerability, and risk mapping.
 
 ## Where users can get help with your project
 
