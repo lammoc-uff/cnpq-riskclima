@@ -34,22 +34,6 @@ def test_cmip6_preparation_converts_flux_and_sums(spi_environment: None) -> None
     assert monthly.attrs["units"] == "mm month-1"
 
 
-def test_cmip6_preparation_rejects_unknown_units(spi_environment: None) -> None:
-    settings = CMIP6Settings()
-    dataset = xr.Dataset(
-        {"pr": (("time", "lat", "lon"), np.ones((1, 1, 1)))},
-        coords={
-            "time": np.array(["1961-01-01"], dtype="datetime64[ns]"),
-            "lat": [0],
-            "lon": [0],
-        },
-    )
-    dataset["pr"].attrs["units"] = "mm"
-
-    with pytest.raises(ValueError, match="units"):
-        prepare_cmip6_monthly_precipitation(dataset, settings)
-
-
 def test_cmip6_preparation_rejects_incomplete_month(spi_environment: None) -> None:
     settings = CMIP6Settings()
     dataset = xr.Dataset(

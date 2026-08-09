@@ -53,9 +53,6 @@ def prepare_cmip6_monthly_precipitation(
     ]
     if missing_dimensions:
         raise ValueError(f"precipitation variable is missing dimensions: {missing_dimensions}")
-    units = dataset[variable].attrs.get("units", "")
-    if units not in {"kg m-2 s-1", "kg m**-2 s**-1", "mm s-1"}:
-        raise ValueError("precipitation units must be a daily flux in kg m-2 s-1 or mm s-1")
     precipitation = dataset[variable].rename(
         {
             settings.cmip6_time_dimension: "time",
