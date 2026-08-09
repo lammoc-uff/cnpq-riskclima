@@ -22,6 +22,13 @@ def test_spi_notebook_has_no_execution_outputs_or_personal_paths(relative_path: 
     assert "My Drive" not in notebook_text
     assert "input(" not in notebook_text
 
+    python_source = "\n".join(
+        "".join(cell["source"])
+        for cell in code_cells
+        if not "".join(cell["source"]).lstrip().startswith("!")
+    )
+    compile(python_source, str(relative_path), "exec")
+
 
 def test_era5_notebook_uses_monthly_mean_accumulation_contract() -> None:
     notebook_text = (Path(__file__).parents[1] / "era5/notebooks/spi.ipynb").read_text(
@@ -42,3 +49,28 @@ def test_cmip6_notebook_records_identity_and_validates_grid() -> None:
 
     for value in ("model_id", "member_id", "grid_label", "exactly equal latitude"):
         assert value in notebook_text
+
+
+@pytest.mark.parametrize("relative_path", NOTEBOOK_PATHS, ids=lambda path: path.parts[0])
+def test_spi_notebook_applies_shared_brazil_mask(relative_path: Path) -> None:
+    notebook_text = (Path(__file__).parents[1] / relative_path).read_text(encoding="utf-8")
+
+    for value in (
+        "SPI_USE_SHAPEFILE",
+        "BR_Pais_2025.shp",
+        "select_spatial_domain",
+        "covers",
+        "spatial_mask_applied",
+        "Andes",
+        "Atacama Desert",
+    ):
+        assert value in notebook_text
+
+
+def test_era5_notebook_derives_cds_area_from_shapefile_bounds() -> None:
+    notebook_text = (Path(__file__).parents[1] / "era5/notebooks/spi.ipynb").read_text(
+        encoding="utf-8"
+    )
+
+    assert "AREA = [north, west, south, east]" in notebook_text
+    assert "monthly_precipitation = select_spatial_domain" in notebook_text
