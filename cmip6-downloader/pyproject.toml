@@ -1,0 +1,54 @@
+[project]
+name = "cmip6-downloader"
+version = "0.1.0"
+description = "CMIP6 cloud catalog resolver and Zarr downloader"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "cftime>=1.6",
+    "dask[array]>=2024.5",
+    "fsspec>=2024.6",
+    "gcsfs>=2024.6",
+    "pandas>=2.2",
+    "pydantic-settings>=2.6",
+    "s3fs>=2024.6",
+    "tqdm>=4.66",
+    "xarray>=2024.5",
+    "zarr>=2.18,<3",
+]
+
+[dependency-groups]
+dev = [
+    "pyrefly>=0.29",
+    "pytest>=8.3",
+    "pytest-cov>=6",
+    "ruff>=0.9",
+    "types-tqdm>=4.70.0.20260805",
+]
+notebook = ["ipykernel>=6.29"]
+
+[tool.uv]
+package = false
+default-groups = ["dev"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["scripts", "tests"]
+extend-exclude = ["**/*.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "PTH", "RUF"]
+
+[tool.pyrefly]
+project-includes = ["scripts", "tests"]
+python-version = "3.12"
+search-path = ["scripts"]
+preset = "strict"
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers"
+testpaths = ["tests"]
+pythonpath = ["scripts"]
+
+[tool.coverage.run]
+source = ["scripts/src"]

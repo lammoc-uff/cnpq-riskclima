@@ -15,6 +15,34 @@ venv/
 
 # Data
 *.csv
+*.parquet
+
+# Shapefiles
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+*.sbn
+*.sbx
+*.qix
+*.fix
+*.shp.xml
+*.qmd
+
+# RiskClima SPI Brazil boundary
+!index-spi/geo_data/brazil/BR_Pais_2025.shp
+!index-spi/geo_data/brazil/BR_Pais_2025.shx
+!index-spi/geo_data/brazil/BR_Pais_2025.dbf
+!index-spi/geo_data/brazil/BR_Pais_2025.prj
+!index-spi/geo_data/brazil/BR_Pais_2025.cpg
+
+# GeoPackage
+*.gpkg
+
+# Rasters
+*.tif
+*.tiff
 
 # Zip
 *.zip
@@ -29,6 +57,7 @@ venv/
 .DS_Store
 Thumbs.db
 *:Zone.Identifier
+.coverage
 
 # index-xhwi climate and array data
 /index-xhwi/**/*.grib
@@ -49,6 +78,15 @@ Thumbs.db
 !/index-xhwi/**/.gitkeep
 !/index-xhwi/**/raw_data/README.md
 !/index-xhwi/tests/fixtures/**
+
+# index-spi climate and array data
+/index-spi/**/*.sif
+/index-spi/**/raw_data/**
+/index-spi/**/results/**
+/index-spi/**/outputs/**
+
+!/index-spi/**/.gitkeep
+!/index-spi/**/README.md
 
 # IDEs
 .vscode/
