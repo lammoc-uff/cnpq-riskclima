@@ -12,6 +12,7 @@ from riskclima_spi.cmip6 import prepare_cmip6_monthly_precipitation, run_cmip6
 from riskclima_spi.config import CMIP6Settings, ERA5Settings
 from riskclima_spi.era5 import prepare_era5_monthly_precipitation, run_era5, standardize_era5_dims
 from riskclima_spi.pipeline import calculate_spi
+from riskclima_spi.spatial import SpatialSelection
 
 
 def test_cmip6_preparation_converts_flux_and_sums(spi_environment: None) -> None:
@@ -63,6 +64,48 @@ def test_cmip6_preparation_rejects_incomplete_month(spi_environment: None) -> No
 
     with pytest.raises(ValueError, match="every day"):
         prepare_cmip6_monthly_precipitation(dataset, settings)
+
+
+def test_cmip6_preparation_crops_to_configured_spatial_bounds(spi_environment: None) -> None:
+    settings = CMIP6Settings()
+    time = np.arange("1961-01-01", "1961-02-01", dtype="datetime64[D]").astype("datetime64[ns]")
+    dataset = xr.Dataset(
+        {"pr": (("time", "lat", "lon"), np.full((len(time), 3, 3), 1e-5))},
+        coords={
+            "time": time,
+            "lat": [-5.0, 0.0, 5.0],
+            "lon": [-5.0, 0.0, 5.0],
+        },
+    )
+    dataset["pr"].attrs["units"] = "kg m-2 s-1"
+
+    monthly = prepare_cmip6_monthly_precipitation(dataset, settings)
+
+    assert monthly.sizes["lat"] == 1
+    assert monthly.sizes["lon"] == 1
+    assert float(monthly.lat.values[0]) == 0.0
+    assert float(monthly.lon.values[0]) == 0.0
+
+
+def test_cmip6_preparation_applies_shared_shapefile_mask(
+    spi_environment: None,
+    boundary_shapefile: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SPI_USE_SHAPEFILE", "true")
+    monkeypatch.setenv("SPI_SHAPEFILE_PATH", str(boundary_shapefile))
+    settings = CMIP6Settings()
+    time = np.arange("1961-01-01", "1961-02-01", dtype="datetime64[D]").astype("datetime64[ns]")
+    dataset = xr.Dataset(
+        {"pr": (("time", "lat", "lon"), np.full((len(time), 3, 3), 1e-5))},
+        coords={"time": time, "lat": [-1.0, 0.0, 1.0], "lon": [-1.0, 0.0, 1.0]},
+    )
+    dataset["pr"].attrs["units"] = "kg m-2 s-1"
+
+    monthly = prepare_cmip6_monthly_precipitation(dataset, settings)
+
+    assert monthly.sel(lat=0, lon=0).item() == pytest.approx(26.784)
+    assert np.isnan(monthly.sel(lat=1, lon=1).item())
 
 
 def test_era5_standardization_renames_and_sorts_dimensions(spi_environment: None) -> None:
@@ -184,9 +227,15 @@ def test_run_era5_writes_spi_from_acquired_monthly_input(
     dataset["tp"].attrs["units"] = "m"
     dataset.to_netcdf(raw_path)
 
-    def acquired_input(era5_settings: ERA5Settings) -> Path:
+    def acquired_input(
+        era5_settings: ERA5Settings,
+        *,
+        spatial_selection: SpatialSelection,
+    ) -> Path:
         if era5_settings != settings:
             raise ValueError("unexpected settings")
+        if spatial_selection is None:
+            raise ValueError("missing spatial selection")
         return raw_path
 
     monkeypatch.setattr(era5_module, "ensure_era5_input", acquired_input)
@@ -238,6 +287,59 @@ def test_run_era5_writes_spi_from_acquired_monthly_input(
         assert "history" in output.attrs
         assert "creators" not in output.attrs
         assert "repository" not in output.attrs
+
+
+def test_run_era5_applies_shared_shapefile_mask_before_spi(
+    spi_environment: None,
+    boundary_shapefile: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SPI_USE_SHAPEFILE", "true")
+    monkeypatch.setenv("SPI_SHAPEFILE_PATH", str(boundary_shapefile))
+    settings = ERA5Settings()
+    time = np.arange("2020-01", "2021-03", dtype="datetime64[M]").astype("datetime64[ns]")
+    raw_path = tmp_path / "era5-masked.nc"
+    dataset = xr.Dataset(
+        {"tp": (("time", "lat", "lon"), np.full((len(time), 3, 3), 0.001))},
+        coords={"time": time, "lat": [-1.0, 0.0, 1.0], "lon": [-1.0, 0.0, 1.0]},
+    )
+    dataset["tp"].attrs["units"] = "m"
+    dataset.to_netcdf(raw_path)
+
+    def acquired_input(
+        era5_settings: ERA5Settings,
+        *,
+        spatial_selection: SpatialSelection,
+    ) -> Path:
+        assert era5_settings == settings
+        assert spatial_selection.uses_shapefile
+        return raw_path
+
+    def calculated_spi(
+        monthly_precipitation: xr.DataArray,
+        calibration_precipitation: xr.DataArray,
+        calculation_settings: ERA5Settings,
+    ) -> xr.DataArray:
+        assert calculation_settings == settings
+        assert monthly_precipitation.identical(calibration_precipitation)
+        assert monthly_precipitation.sel(lat=0, lon=0).notnull().all().compute().item()
+        assert monthly_precipitation.sel(lat=1, lon=1).isnull().all().compute().item()
+        return (
+            xr.zeros_like(monthly_precipitation)
+            .where(monthly_precipitation.notnull())
+            .rename("spi")
+        )
+
+    monkeypatch.setattr(era5_module, "ensure_era5_input", acquired_input)
+    monkeypatch.setattr(era5_module, "calculate_spi", calculated_spi)
+
+    output_path = run_era5(settings)
+
+    with xr.open_dataset(output_path) as output:
+        assert output.attrs["spatial_mask_applied"] == "true"
+        assert output.attrs["spatial_geometry"] == boundary_shapefile.name
+        assert np.isnan(output["spi"].sel(lat=1, lon=1).values).all()
 
 
 def test_run_cmip6_records_daily_flux_conversion_metadata(

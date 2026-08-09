@@ -14,6 +14,7 @@ from riskclima_spi.era5 import (
     _create_cds_client,
     ensure_era5_input_with_client,
 )
+from riskclima_spi.spatial import GeographicBounds, resolve_spatial_selection
 
 
 class FakeRawCDSClient:
@@ -170,6 +171,24 @@ def test_different_request_with_same_period_overwrites_exact_final(
     assert second_output.is_file()
     with xr.open_dataset(second_output) as dataset:
         assert dataset.attrs["era5_area"].endswith("-10.0")
+
+
+def test_shapefile_bounds_define_era5_request_area(
+    spi_environment: None,
+    boundary_shapefile: Path,
+) -> None:
+    settings = ERA5Settings()
+    selection = resolve_spatial_selection(
+        use_shapefile=True,
+        shapefile_path=boundary_shapefile,
+        fallback_bounds=GeographicBounds(west=-120, south=-70, east=-5, north=20),
+    )
+    client = FakeCDSClient()
+
+    ensure_era5_input_with_client(settings, client, spatial_selection=selection)
+
+    assert client.requests
+    assert client.requests[0]["area"] == [1.0, -1.0, -1.0, 1.0]
 
 
 def test_failed_download_removes_parts_without_creating_final(

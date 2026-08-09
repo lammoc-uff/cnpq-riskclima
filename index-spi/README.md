@@ -77,6 +77,10 @@ SPI_DISTRIBUTION=gamma
 SPI_METHOD=APP
 SPI_FLOC=0
 
+# Shared spatial clipping
+SPI_USE_SHAPEFILE=True
+SPI_SHAPEFILE_PATH=geo_data/brazil/BR_Pais_2025.shp
+
 # Shared NetCDF output
 NETCDF_ENGINE=netcdf4
 NETCDF_FORMAT=NETCDF4
@@ -108,6 +112,10 @@ CMIP6_PRECIPITATION_VARIABLE=pr
 CMIP6_TIME_DIMENSION=time
 CMIP6_LATITUDE_DIMENSION=lat
 CMIP6_LONGITUDE_DIMENSION=lon
+CMIP6_LATITUDE_MIN=-70
+CMIP6_LATITUDE_MAX=20
+CMIP6_LONGITUDE_MIN=-120
+CMIP6_LONGITUDE_MAX=-5
 CMIP6_CALIBRATION_START=1961-01-01
 CMIP6_CALIBRATION_END=1990-12-31
 CMIP6_APPLICATION_START=2015-01-01
@@ -149,6 +157,12 @@ ERA5_APPLICATION_END=2026-07-01
 ERA5_OUTPUT_DIRECTORY=era5/results
 ERA5_OUTPUT_TEMPLATE=spi{scale_months}_era5_{start}_{end}.nc
 ```
+
+`SPI_USE_SHAPEFILE=True` applies the configured country boundary to both CMIP6 and ERA5. A grid cell is retained when its center lies inside or on the boundary; cells outside it are stored as `NaN`. The ERA5 request uses the geometry's rectangular extent because CDS accepts rectangular areas, then the exact boundary mask is applied locally before SPI calculation. Set the option to `False` to use the configured latitude and longitude bounds for each source. A missing or invalid shapefile stops processing without a fallback.
+
+The Brazil boundary mask was selected because precipitation regimes influenced by the Andes and the Atacama Desert can prevent adequate calculations for a product focused on Brazil. The mask excludes those external regimes from CMIP6 calibration and application data and from ERA5 data before SPI calculation.
+
+The boundary is the 2025 Brazil country contour published by IBGE. Its source and methodological notice are documented in [`geo_data/brazil/README.md`](geo_data/brazil/README.md).
 
 For CMIP6, set both input paths plus the model, experiment, member, and grid identity. The calibration and application latitude/longitude coordinates must match exactly. Historical ensemble means are represented explicitly with `CMIP6_MEMBER=ensemble_mean`; identity is not inferred from paths. For ERA5, `CDSAPI_URL` always selects the endpoint. A nonblank `CDSAPI_KEY` takes priority even if `CDSAPI_CONFIG_FILE` does not exist; otherwise only `key` is read from that file and any file `url` is ignored. Every ERA5 run downloads and atomically replaces the exact date-based raw `.nc` path after monthly-coverage and exact-grid validation, cleaning temporary parts on success or failure. SPI calculation uses complete-time Dask chunks, 32-cell spatial chunks, one worker, and a delayed NetCDF write.
 

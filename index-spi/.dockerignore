@@ -8,3 +8,5 @@ __pycache__
 cmip6/results
 .git
 .gitignore
+*:Zone.Identifier
+*.qmd

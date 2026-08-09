@@ -31,7 +31,7 @@ apptainer exec --cleanenv \
   riskclima-spi-era5
 ```
 
-Relative paths in `.env` resolve under `/work`. Ensure every CMIP6 input path is in a bound directory. ERA5 raw data and results use the bound project directories with the default configuration.
+Relative paths in `.env` resolve under `/work`. Ensure every CMIP6 input path is in a bound directory. ERA5 raw data and results use the bound project directories with the default configuration. The complete project bind also provides `geo_data/brazil/BR_Pais_2025.shp` and its `.shx`, `.dbf`, `.prj`, and `.cpg` components for the default spatial mask.
 
 ## Separate configuration
 
@@ -39,7 +39,7 @@ Bind a configuration file and only the source directories needed by the selected
 
 ```bash
 apptainer exec --cleanenv \
-  --bind "/host/config/spi.env:/work/.env:ro,/host/cmip6:/work/cmip6" \
+  --bind "/host/config/spi.env:/work/.env:ro,/host/cmip6:/work/cmip6,/host/geo_data:/work/geo_data:ro" \
   --pwd /work \
   riskclima-spi.sif \
   riskclima-spi-cmip6
@@ -49,7 +49,7 @@ For ERA5 with a CDS configuration file:
 
 ```bash
 apptainer exec --cleanenv \
-  --bind "/host/config/spi.env:/work/.env:ro,/host/config/cdsapirc:/run/secrets/cdsapirc:ro,/host/era5:/work/era5" \
+  --bind "/host/config/spi.env:/work/.env:ro,/host/config/cdsapirc:/run/secrets/cdsapirc:ro,/host/era5:/work/era5,/host/geo_data:/work/geo_data:ro" \
   --pwd /work \
   riskclima-spi.sif \
   riskclima-spi-era5

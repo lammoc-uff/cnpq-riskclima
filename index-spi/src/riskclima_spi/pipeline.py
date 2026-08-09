@@ -7,6 +7,7 @@ from xclim.indices import standardized_precipitation_index
 from xclim.indices.stats import standardized_index_fit_params
 
 from riskclima_spi.config import SPISettings
+from riskclima_spi.spatial import SpatialSelection
 
 
 @dataclass(frozen=True)
@@ -81,7 +82,11 @@ def calculate_spi(
         zero_inflated=True,
         fitkwargs={"floc": settings.spi_floc},
     )
-    result = standardized_precipitation_index(pr=monthly_precipitation, params=parameters)
+    result = standardized_precipitation_index(
+        pr=monthly_precipitation,
+        params=parameters,
+        prob_zero_interpolation="center",
+    )
     result = result.sel(
         time=slice(
             settings.spi_application_start.isoformat(),
@@ -103,6 +108,7 @@ def build_output_dataset(
     settings: SPISettings,
     *,
     source_metadata: SPISourceMetadata,
+    spatial_selection: SpatialSelection,
 ) -> xr.Dataset:
     """Create a metadata-rich SPI output dataset.
 
@@ -114,6 +120,8 @@ def build_output_dataset(
         Shared SPI and metadata configuration.
     source_metadata
         Source identity, input variables, and precipitation conversion details.
+    spatial_selection
+        Effective bounds and optional shapefile mask used for the product.
 
     Returns
     -------
@@ -130,6 +138,19 @@ def build_output_dataset(
             dataset[dimension].attrs.update(standard_name=standard_name, axis=axis)
             if units is not None:
                 dataset[dimension].attrs["units"] = units
+    fit_failure_interpretation = (
+        "Cells outside the configured shapefile geometry are intentionally NaN. Within the "
+        "geometry, NaN SPI values indicate missing precipitation or a probability distribution "
+        "that could not be fitted for that calendar month and grid cell."
+        if spatial_selection.uses_shapefile
+        else (
+            "With complete precipitation input, NaN SPI values indicate that the selected "
+            "probability distribution could not be fitted for that calendar month and grid cell. "
+            "This can occur in very arid regions when the calibration sample contains too few "
+            "positive precipitation values, producing non-finite or non-positive distribution "
+            "parameters."
+        )
+    )
     dataset["spi"].attrs.update(
         long_name=f"Standardized Precipitation Index ({settings.spi_scale_months}-month)",
         units="1",
@@ -137,13 +158,7 @@ def build_output_dataset(
             "Positive values indicate wetter-than-normal conditions; "
             "negative values indicate drier-than-normal conditions."
         ),
-        fit_failure_interpretation=(
-            "With complete precipitation input, NaN SPI values indicate that the selected "
-            "probability distribution could not be fitted for that calendar month and grid "
-            "cell. This can occur in very arid regions when the calibration sample contains "
-            "too few positive precipitation values, producing non-finite or non-positive "
-            "distribution parameters."
-        ),
+        fit_failure_interpretation=fit_failure_interpretation,
         numerical_bounds="[-8.21, 8.21]",
         numerical_bounds_interpretation=(
             "When the fitted cumulative probability is numerically equal to 0 or 1, its "
@@ -199,7 +214,8 @@ def build_output_dataset(
         calibration_method=(
             f"{settings.spi_distribution} distribution fitted independently for each "
             f"calendar month and grid cell using xclim {settings.spi_method}, "
-            f"floc={settings.spi_floc:g}, and zero-inflated precipitation."
+            f"floc={settings.spi_floc:g}, zero-inflated precipitation, and "
+            "prob_zero_interpolation=center."
         ),
         compute_backend="xarray and xclim",
         spi_scale_months=settings.spi_scale_months,
@@ -208,7 +224,23 @@ def build_output_dataset(
         spi_floc=settings.spi_floc,
         precipitation_conversion=source_metadata.precipitation_conversion,
         monthly_precipitation_units="mm month-1",
+        spatial_selection=(
+            "cell centers covered by shapefile geometry"
+            if spatial_selection.uses_shapefile
+            else "configured latitude and longitude bounds"
+        ),
+        spatial_mask_applied="true" if spatial_selection.uses_shapefile else "false",
+        spatial_bounds=(
+            f"west={spatial_selection.bounds.west}, south={spatial_selection.bounds.south}, "
+            f"east={spatial_selection.bounds.east}, north={spatial_selection.bounds.north}"
+        ),
     )
+    if spatial_selection.geometry_path is not None:
+        dataset.attrs.update(
+            spatial_geometry=spatial_selection.geometry_path.name,
+            spatial_geometry_source_crs=spatial_selection.geometry_crs or "unknown",
+            spatial_geometry_target_crs="EPSG:4326",
+        )
     return dataset
 
 

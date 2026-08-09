@@ -6,7 +6,7 @@ Run commands from `index-spi` after `make install`, `.env` configuration, and ac
 
 ## Acquisition contract
 
-The default source is `reanalysis-era5-single-levels-monthly-means`, product type `monthly_averaged_reanalysis`, variable `total_precipitation`, and time `00:00`. The request area is sent to CDS as north, west, south, east from the configured latitude and longitude bounds.
+The default source is `reanalysis-era5-single-levels-monthly-means`, product type `monthly_averaged_reanalysis`, variable `total_precipitation`, and time `00:00`. With `SPI_USE_SHAPEFILE=True`, the request area is the rectangular extent of `SPI_SHAPEFILE_PATH`, sent to CDS as north, west, south, east. CDS returns that rectangle, and the workflow applies the exact country mask locally before SPI calculation. With the option disabled, the request uses the configured ERA5 latitude and longitude bounds and no territorial mask is applied.
 
 With the default period, 1940-01-01 through 2026-07-01, CDS receives two requests: one for every month in the complete years 1940-2025 and one for January-July 2026. More generally, an end month before December splits earlier complete years from the partial final year. A period ending in December uses one complete-period request.
 
@@ -31,7 +31,7 @@ ERA5 monthly averaged total precipitation is a mean daily rate in metres. For ea
 tp * 1000 * days_in_month
 ```
 
-The result is monthly accumulated precipitation in `mm month-1`. Accepted source unit attributes are `m`, `m/day`, `m day-1`, and `m of water equivalent`. The same monthly data supplies the configured 1961-1990 calibration and the application period.
+The result is monthly accumulated precipitation in `mm month-1`. Accepted source unit attributes are `m`, `m/day`, `m day-1`, and `m of water equivalent`. The country mask retains cells whose centers lie inside or on the boundary. The same masked monthly data supplies the configured calibration and application periods.
 
 ## Configure
 
@@ -44,6 +44,7 @@ The ERA5 fields in `.env.example` control credentials, dataset request, domain, 
 - `ERA5_RAW_FILE_TEMPLATE` must support `{start}` and `{end}` if those values are used in the filename.
 - `ERA5_SPATIAL_CHUNK` controls the latitude and longitude Dask chunk size; `.env.example` uses `32`.
 - `ERA5_DASK_WORKERS` limits concurrent threaded Dask tasks; `.env.example` uses `1`.
+- `SPI_USE_SHAPEFILE` and `SPI_SHAPEFILE_PATH` define the shared spatial mask used by ERA5 and CMIP6.
 
 ## Run
 
@@ -71,7 +72,7 @@ Default paths are relative to `index-spi`:
 - retained raw input: `era5/raw_data/era5_tp_monthly_1940-01-01_2026-07-01.nc`
 - SPI output: `era5/results/spi1_era5_1940-01-01_2026-07-01.nc`
 
-The output variable is `spi` on `time`, `lat`, and `lon`. An existing SPI file at the exact output path is atomically replaced. Raw data and outputs remain outside Git.
+The output variable is `spi` on `time`, `lat`, and `lon`. An existing SPI file at the exact output path is atomically replaced. The raw ERA5 file retains the rectangular CDS request area; cells outside the country boundary are masked in the SPI product. Raw data and outputs remain outside Git.
 
 Global metadata records the creator, institution, project, repository, ERA5
 dataset and product type, calibration method, SPI parameters, spatial and

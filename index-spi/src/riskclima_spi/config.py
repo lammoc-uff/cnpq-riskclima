@@ -28,6 +28,8 @@ class SPISettings(BaseSettings):
     spi_distribution: str = Field(validation_alias="SPI_DISTRIBUTION", min_length=1)
     spi_method: str = Field(validation_alias="SPI_METHOD", min_length=1)
     spi_floc: float = Field(validation_alias="SPI_FLOC")
+    spi_use_shapefile: bool = Field(validation_alias="SPI_USE_SHAPEFILE")
+    spi_shapefile_path: Path = Field(validation_alias="SPI_SHAPEFILE_PATH")
     spi_calibration_start: date
     spi_calibration_end: date
     spi_application_start: date
@@ -71,6 +73,8 @@ class SPISettings(BaseSettings):
             raise ValueError("scipy requires a NETCDF3 format")
         if self.netcdf_engine == "scipy" and self.netcdf_compression:
             raise ValueError("scipy does not support NetCDF compression")
+        if self.spi_use_shapefile:
+            _validate_shapefile_bundle(self.spi_shapefile_path)
         return self
 
 
@@ -87,6 +91,10 @@ class CMIP6Settings(SPISettings):
     cmip6_time_dimension: str = Field(validation_alias="CMIP6_TIME_DIMENSION")
     cmip6_latitude_dimension: str = Field(validation_alias="CMIP6_LATITUDE_DIMENSION")
     cmip6_longitude_dimension: str = Field(validation_alias="CMIP6_LONGITUDE_DIMENSION")
+    cmip6_latitude_min: float = Field(validation_alias="CMIP6_LATITUDE_MIN", ge=-90, le=90)
+    cmip6_latitude_max: float = Field(validation_alias="CMIP6_LATITUDE_MAX", ge=-90, le=90)
+    cmip6_longitude_min: float = Field(validation_alias="CMIP6_LONGITUDE_MIN", ge=-180, le=180)
+    cmip6_longitude_max: float = Field(validation_alias="CMIP6_LONGITUDE_MAX", ge=-180, le=180)
 
     spi_calibration_start: date = Field(validation_alias="CMIP6_CALIBRATION_START")
     spi_calibration_end: date = Field(validation_alias="CMIP6_CALIBRATION_END")
@@ -111,6 +119,17 @@ class CMIP6Settings(SPISettings):
         if not value.strip():
             raise ValueError("CMIP6 configuration values must not be blank")
         return value
+
+    @model_validator(mode="after")
+    def validate_spatial_bounds(self) -> "CMIP6Settings":
+        """Validate CMIP6 latitude and longitude bounds."""
+        if self.spi_use_shapefile:
+            return self
+        if self.cmip6_latitude_min >= self.cmip6_latitude_max:
+            raise ValueError("CMIP6 latitude minimum must be below its maximum")
+        if self.cmip6_longitude_min >= self.cmip6_longitude_max:
+            raise ValueError("CMIP6 longitude minimum must be below its maximum")
+        return self
 
     @field_validator("spi_output_template")
     @classmethod
@@ -190,10 +209,11 @@ class ERA5Settings(SPISettings):
             raise ValueError("ERA5 download start must be January 1")
         if self.era5_download_end.day != 1:
             raise ValueError("ERA5 download end must be the first day of a month")
-        if self.era5_latitude_min >= self.era5_latitude_max:
-            raise ValueError("ERA5 latitude minimum must be below its maximum")
-        if self.era5_longitude_min >= self.era5_longitude_max:
-            raise ValueError("ERA5 longitude minimum must be below its maximum")
+        if not self.spi_use_shapefile:
+            if self.era5_latitude_min >= self.era5_latitude_max:
+                raise ValueError("ERA5 latitude minimum must be below its maximum")
+            if self.era5_longitude_min >= self.era5_longitude_max:
+                raise ValueError("ERA5 longitude minimum must be below its maximum")
         if not (
             self.era5_download_start
             <= self.spi_calibration_start
@@ -237,3 +257,18 @@ class CDSCredentials(BaseSettings):
     cdsapi_url: str = Field(validation_alias="CDSAPI_URL", min_length=1)
     cdsapi_key: SecretStr | None = Field(default=None, validation_alias="CDSAPI_KEY")
     cdsapi_config_file: Path = Field(validation_alias="CDSAPI_CONFIG_FILE")
+
+
+def _validate_shapefile_bundle(path: Path) -> None:
+    expanded_path = path.expanduser()
+    if expanded_path.suffix.lower() != ".shp":
+        raise ValueError("SPI_SHAPEFILE_PATH must point to a .shp file")
+    if not expanded_path.is_file():
+        raise ValueError(f"SPI shapefile does not exist: {path}")
+    missing = [
+        expanded_path.with_suffix(suffix).name
+        for suffix in (".shx", ".dbf", ".prj")
+        if not expanded_path.with_suffix(suffix).is_file()
+    ]
+    if missing:
+        raise ValueError(f"SPI shapefile is missing required components: {', '.join(missing)}")

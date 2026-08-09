@@ -17,6 +17,12 @@ from riskclima_spi.pipeline import (
     calculate_spi,
     write_output,
 )
+from riskclima_spi.spatial import (
+    GeographicBounds,
+    SpatialSelection,
+    resolve_spatial_selection,
+    select_spatial_domain,
+)
 
 type CDSRequestValue = str | list[str] | list[float]
 type CDSRequest = dict[str, CDSRequestValue]
@@ -162,24 +168,41 @@ def prepare_era5_monthly_precipitation(dataset: xr.Dataset, settings: ERA5Settin
     return monthly.rename("pr").assign_attrs(units="mm month-1")
 
 
-def ensure_era5_input(settings: ERA5Settings) -> Path:
+def ensure_era5_input(
+    settings: ERA5Settings,
+    *,
+    spatial_selection: SpatialSelection | None = None,
+) -> Path:
     """Download and atomically replace the configured ERA5 input.
 
     Parameters
     ----------
     settings
         ERA5 acquisition contract and final raw-data path template.
+    spatial_selection
+        Effective request bounds and optional territorial geometry. The value
+        is resolved from ``settings`` when omitted.
 
     Returns
     -------
     pathlib.Path
         Newly created final ERA5 NetCDF file.
     """
+    selection = spatial_selection or _era5_spatial_selection(settings)
     credentials = CDSCredentials()
-    return ensure_era5_input_with_client(settings, _create_cds_client(credentials))
+    return ensure_era5_input_with_client(
+        settings,
+        _create_cds_client(credentials),
+        spatial_selection=selection,
+    )
 
 
-def ensure_era5_input_with_client(settings: ERA5Settings, client: CDSClient) -> Path:
+def ensure_era5_input_with_client(
+    settings: ERA5Settings,
+    client: CDSClient,
+    *,
+    spatial_selection: SpatialSelection | None = None,
+) -> Path:
     """Download ERA5 input using an explicit CDS client.
 
     Parameters
@@ -188,13 +211,17 @@ def ensure_era5_input_with_client(settings: ERA5Settings, client: CDSClient) -> 
         ERA5 acquisition contract and final raw-data path template.
     client
         CDS client used for every configured request.
+    spatial_selection
+        Effective request bounds and optional territorial geometry. The value
+        is resolved from ``settings`` when omitted.
 
     Returns
     -------
     pathlib.Path
         Newly created final ERA5 NetCDF file.
     """
-    requests = _build_request_parts(settings)
+    selection = spatial_selection or _era5_spatial_selection(settings)
+    requests = _build_request_parts(settings, selection)
     output_path = settings.raw_input_path()
     parts = _part_paths(output_path, requests)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -203,7 +230,7 @@ def ensure_era5_input_with_client(settings: ERA5Settings, client: CDSClient) -> 
         for part in parts:
             LOGGER.info("Requesting ERA5 data: %s", part.path.name)
             client.download(settings.era5_dataset, part.request, str(part.path))
-        _concatenate_parts(parts, temporary_output, settings)
+        _concatenate_parts(parts, temporary_output, settings, selection)
         temporary_output.replace(output_path)
     finally:
         temporary_output.unlink(missing_ok=True)
@@ -226,7 +253,8 @@ def run_era5(settings: ERA5Settings) -> Path:
     pathlib.Path
         Written SPI NetCDF path.
     """
-    input_path = ensure_era5_input(settings)
+    spatial_selection = _era5_spatial_selection(settings)
+    input_path = ensure_era5_input(settings, spatial_selection=spatial_selection)
     chunks = {
         "time": -1,
         "lat": settings.era5_spatial_chunk,
@@ -234,6 +262,8 @@ def run_era5(settings: ERA5Settings) -> Path:
     }
     with xr.open_dataset(input_path, chunks=chunks) as dataset:
         monthly = prepare_era5_monthly_precipitation(dataset, settings)
+        if spatial_selection.uses_shapefile:
+            monthly = select_spatial_domain(monthly, spatial_selection)
         spi = calculate_spi(monthly, monthly, settings)
         output = build_output_dataset(
             spi,
@@ -251,6 +281,7 @@ def run_era5(settings: ERA5Settings) -> Path:
                     "month, producing monthly accumulated precipitation in mm month-1."
                 ),
             ),
+            spatial_selection=spatial_selection,
         )
         output.attrs.update(
             dataset_id=settings.era5_dataset,
@@ -265,7 +296,10 @@ def run_era5(settings: ERA5Settings) -> Path:
         )
 
 
-def _build_request_parts(settings: ERA5Settings) -> list[CDSRequest]:
+def _build_request_parts(
+    settings: ERA5Settings,
+    spatial_selection: SpatialSelection,
+) -> list[CDSRequest]:
     complete_end_year = (
         settings.era5_download_end.year
         if settings.era5_download_end.month == 12
@@ -276,6 +310,7 @@ def _build_request_parts(settings: ERA5Settings) -> list[CDSRequest]:
         requests.append(
             _build_request(
                 settings,
+                spatial_selection=spatial_selection,
                 years=range(settings.era5_download_start.year, complete_end_year + 1),
                 months=range(1, 13),
             )
@@ -284,6 +319,7 @@ def _build_request_parts(settings: ERA5Settings) -> list[CDSRequest]:
         requests.append(
             _build_request(
                 settings,
+                spatial_selection=spatial_selection,
                 years=range(settings.era5_download_end.year, settings.era5_download_end.year + 1),
                 months=range(1, settings.era5_download_end.month + 1),
             )
@@ -291,7 +327,13 @@ def _build_request_parts(settings: ERA5Settings) -> list[CDSRequest]:
     return requests
 
 
-def _build_request(settings: ERA5Settings, *, years: range, months: range) -> CDSRequest:
+def _build_request(
+    settings: ERA5Settings,
+    *,
+    spatial_selection: SpatialSelection,
+    years: range,
+    months: range,
+) -> CDSRequest:
     return {
         "product_type": [settings.era5_product_type],
         "variable": [settings.era5_request_variable],
@@ -300,12 +342,7 @@ def _build_request(settings: ERA5Settings, *, years: range, months: range) -> CD
         "time": [settings.era5_time],
         "data_format": settings.era5_data_format,
         "download_format": settings.era5_download_format,
-        "area": [
-            settings.era5_latitude_max,
-            settings.era5_longitude_min,
-            settings.era5_latitude_min,
-            settings.era5_longitude_max,
-        ],
+        "area": spatial_selection.bounds.as_cds_area(),
     }
 
 
@@ -321,6 +358,7 @@ def _concatenate_parts(
     parts: list[ERA5RequestPart],
     output_path: Path,
     settings: ERA5Settings,
+    spatial_selection: SpatialSelection,
 ) -> None:
     with ExitStack() as stack:
         datasets = [
@@ -336,14 +374,24 @@ def _concatenate_parts(
             era5_request_variable=settings.era5_request_variable,
             era5_download_start=settings.era5_download_start.isoformat(),
             era5_download_end=settings.era5_download_end.isoformat(),
-            era5_area=(
-                f"{settings.era5_latitude_max}, {settings.era5_longitude_min}, "
-                f"{settings.era5_latitude_min}, {settings.era5_longitude_max}"
-            ),
+            era5_area=", ".join(str(value) for value in spatial_selection.bounds.as_cds_area()),
         )
         combined.to_netcdf(
             output_path, engine=settings.netcdf_engine, format=settings.netcdf_format
         )
+
+
+def _era5_spatial_selection(settings: ERA5Settings) -> SpatialSelection:
+    return resolve_spatial_selection(
+        use_shapefile=settings.spi_use_shapefile,
+        shapefile_path=settings.spi_shapefile_path,
+        fallback_bounds=GeographicBounds(
+            west=settings.era5_longitude_min,
+            south=settings.era5_latitude_min,
+            east=settings.era5_longitude_max,
+            north=settings.era5_latitude_max,
+        ),
+    )
 
 
 def _validate_exact_spatial_grids(datasets: list[xr.Dataset]) -> None:

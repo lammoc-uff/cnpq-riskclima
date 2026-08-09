@@ -10,10 +10,19 @@ from riskclima_spi.pipeline import (
     open_precipitation_dataset,
     write_output,
 )
+from riskclima_spi.spatial import (
+    GeographicBounds,
+    SpatialSelection,
+    resolve_spatial_selection,
+    select_spatial_domain,
+)
 
 
 def prepare_cmip6_monthly_precipitation(
-    dataset: xr.Dataset, settings: CMIP6Settings
+    dataset: xr.Dataset,
+    settings: CMIP6Settings,
+    *,
+    spatial_selection: SpatialSelection | None = None,
 ) -> xr.DataArray:
     """Convert daily CMIP6 precipitation flux into monthly accumulation.
 
@@ -23,6 +32,8 @@ def prepare_cmip6_monthly_precipitation(
         Preprocessed CMIP6 dataset containing daily precipitation flux.
     settings
         CMIP6 variable and dimension names.
+    spatial_selection
+        Resolved shared spatial policy. It is resolved from ``settings`` when omitted.
 
     Returns
     -------
@@ -53,6 +64,8 @@ def prepare_cmip6_monthly_precipitation(
         }
     )
     precipitation = precipitation.sortby(["time", "lat", "lon"])
+    selection = spatial_selection or _cmip6_spatial_selection(settings)
+    precipitation = select_spatial_domain(precipitation, selection)
     _validate_complete_daily_series(precipitation)
     precipitation = precipitation * 86400
     precipitation.attrs = {"units": "mm day-1"}
@@ -73,12 +86,21 @@ def run_cmip6(settings: CMIP6Settings) -> Path:
     pathlib.Path
         Written SPI NetCDF path.
     """
+    spatial_selection = _cmip6_spatial_selection(settings)
     with (
         open_precipitation_dataset(settings.cmip6_calibration_input_file) as calibration_dataset,
         open_precipitation_dataset(settings.cmip6_input_file) as input_dataset,
     ):
-        calibration_monthly = prepare_cmip6_monthly_precipitation(calibration_dataset, settings)
-        input_monthly = prepare_cmip6_monthly_precipitation(input_dataset, settings)
+        calibration_monthly = prepare_cmip6_monthly_precipitation(
+            calibration_dataset,
+            settings,
+            spatial_selection=spatial_selection,
+        )
+        input_monthly = prepare_cmip6_monthly_precipitation(
+            input_dataset,
+            settings,
+            spatial_selection=spatial_selection,
+        )
         _validate_exact_spatial_grid(calibration_monthly, input_monthly)
         spi = calculate_spi(input_monthly, calibration_monthly, settings)
         output = build_output_dataset(
@@ -98,6 +120,7 @@ def run_cmip6(settings: CMIP6Settings) -> Path:
                     "precipitation in mm month-1."
                 ),
             ),
+            spatial_selection=spatial_selection,
         )
         output.attrs.update(
             dataset_id="CMIP6",
@@ -108,6 +131,19 @@ def run_cmip6(settings: CMIP6Settings) -> Path:
             grid_label=settings.cmip6_grid,
         )
         return write_output(output, settings.output_path(), settings)
+
+
+def _cmip6_spatial_selection(settings: CMIP6Settings) -> SpatialSelection:
+    return resolve_spatial_selection(
+        use_shapefile=settings.spi_use_shapefile,
+        shapefile_path=settings.spi_shapefile_path,
+        fallback_bounds=GeographicBounds(
+            west=settings.cmip6_longitude_min,
+            south=settings.cmip6_latitude_min,
+            east=settings.cmip6_longitude_max,
+            north=settings.cmip6_latitude_max,
+        ),
+    )
 
 
 def _validate_exact_spatial_grid(calibration: xr.DataArray, application: xr.DataArray) -> None:

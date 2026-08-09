@@ -1,7 +1,9 @@
 from collections.abc import Iterator
 from pathlib import Path
 
+import geopandas as gpd
 import pytest
+from shapely.geometry import Polygon
 
 
 @pytest.fixture
@@ -12,6 +14,8 @@ def spi_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator
         "SPI_DISTRIBUTION": "gamma",
         "SPI_METHOD": "APP",
         "SPI_FLOC": "0",
+        "SPI_USE_SHAPEFILE": "false",
+        "SPI_SHAPEFILE_PATH": str(tmp_path / "boundary.shp"),
         "NETCDF_ENGINE": "netcdf4",
         "NETCDF_FORMAT": "NETCDF4",
         "NETCDF_COMPRESSION": "true",
@@ -36,6 +40,10 @@ def spi_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator
         "CMIP6_TIME_DIMENSION": "time",
         "CMIP6_LATITUDE_DIMENSION": "lat",
         "CMIP6_LONGITUDE_DIMENSION": "lon",
+        "CMIP6_LATITUDE_MIN": "-1",
+        "CMIP6_LATITUDE_MAX": "1",
+        "CMIP6_LONGITUDE_MIN": "-1",
+        "CMIP6_LONGITUDE_MAX": "1",
         "CMIP6_CALIBRATION_START": "1961-01-01",
         "CMIP6_CALIBRATION_END": "1990-12-31",
         "CMIP6_APPLICATION_START": "2015-01-01",
@@ -76,3 +84,16 @@ def spi_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator
     for key, value in values.items():
         monkeypatch.setenv(key, value)
     yield
+
+
+@pytest.fixture
+def boundary_shapefile(tmp_path: Path) -> Path:
+    """Create a small SIRGAS 2000 polygon shapefile."""
+    path = tmp_path / "boundary.shp"
+    frame = gpd.GeoDataFrame(
+        {"name": ["test boundary"]},
+        geometry=[Polygon([(-1, -1), (1, -1), (-1, 1), (-1, -1)])],
+        crs="EPSG:4674",
+    )
+    frame.to_file(path)
+    return path

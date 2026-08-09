@@ -13,9 +13,12 @@ Run commands from `index-spi` after `make install` and `.env` configuration. CMI
 - daily precipitation flux units of `kg m-2 s-1`, `kg m**-2 s**-1`, or `mm s-1`
 - time coverage for its configured application or calibration period
 - timestamps compatible with xarray monthly-start resampling
-- latitude and longitude coordinates exactly equal between calibration and application data after normalization
+- latitude and longitude coordinates exactly equal between calibration and application data after normalization and spatial cropping
+- spatial coverage including either the configured bounds or the Brazil boundary extent
 
 For a historical run, both input paths may identify the same dataset. For a scenario run, the calibration input normally remains historical while the experiment input identifies the selected scenario.
+
+With `SPI_USE_SHAPEFILE=True`, the workflow derives the spatial extent from `SPI_SHAPEFILE_PATH` and applies the same country mask to calibration and application data. A cell is retained when its center lies inside or on the boundary. The calculation stops if the shapefile is missing or invalid, if the source grid does not overlap its extent, or if no cell centers fall within the geometry. With the option disabled, CMIP6 uses its configured latitude and longitude bounds.
 
 Set `CMIP6_MODEL`, `CMIP6_EXPERIMENT`, `CMIP6_MEMBER`, and `CMIP6_GRID` explicitly. These values define output identity and metadata and are not inferred from paths. A historical ensemble mean can use `CMIP6_MEMBER=ensemble_mean`.
 

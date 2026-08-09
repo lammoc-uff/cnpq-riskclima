@@ -34,6 +34,40 @@ def test_era5_dask_settings_load_from_environment(
     assert settings.era5_dask_workers == 3
 
 
+def test_shared_shapefile_settings_apply_to_both_sources(
+    spi_environment: None,
+    boundary_shapefile: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SPI_USE_SHAPEFILE", "true")
+    monkeypatch.setenv("SPI_SHAPEFILE_PATH", str(boundary_shapefile))
+
+    cmip6 = CMIP6Settings()
+    era5 = ERA5Settings()
+
+    assert cmip6.spi_use_shapefile is True
+    assert era5.spi_use_shapefile is True
+    assert cmip6.spi_shapefile_path == boundary_shapefile
+    assert era5.spi_shapefile_path == boundary_shapefile
+
+
+def test_disabled_shapefile_does_not_require_the_file(spi_environment: None) -> None:
+    settings = CMIP6Settings()
+
+    assert settings.spi_use_shapefile is False
+    assert not settings.spi_shapefile_path.exists()
+
+
+def test_enabled_shapefile_rejects_missing_file(
+    spi_environment: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SPI_USE_SHAPEFILE", "true")
+
+    with pytest.raises(ValueError, match="SPI shapefile does not exist"):
+        ERA5Settings()
+
+
 @pytest.mark.parametrize("name", ["CMIP6_MODEL", "CMIP6_MEMBER", "CMIP6_GRID"])
 def test_cmip6_settings_reject_blank_identity(
     spi_environment: None, monkeypatch: pytest.MonkeyPatch, name: str
@@ -102,8 +136,12 @@ def test_env_example_contains_every_settings_alias(spi_environment: None) -> Non
         "ERA5_SPATIAL_CHUNK",
         "ERA5_DASK_WORKERS",
         "ERA5_OUTPUT_TEMPLATE",
+        "SPI_USE_SHAPEFILE",
+        "SPI_SHAPEFILE_PATH",
     ):
         assert f"{name}=" in env_text
     assert 'METADATA_CREATORS="Marcio Cataldi <mcataldi@id.uff.br>"' in env_text
     assert "ERA5_SPATIAL_CHUNK=32" in env_text
     assert "ERA5_DASK_WORKERS=1" in env_text
+    assert "SPI_USE_SHAPEFILE=True" in env_text
+    assert "SPI_SHAPEFILE_PATH=geo_data/brazil/BR_Pais_2025.shp" in env_text
