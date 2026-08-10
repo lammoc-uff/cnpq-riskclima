@@ -1,6 +1,6 @@
 # RiskClima SACZ index
 
-This directory contains Python workflows for the South Atlantic Convergence Zone (SACZ) index using ERA5 and CMIP6 atmospheric data. Each source has two independent stages:
+This directory contains Python workflows for the South Atlantic Convergence Zone (SACZ) index using ERA5 and CMIP6 atmospheric data. The scientific context for the SACZ predictors is described in [Dynamics-based regression models for the South Atlantic Convergence Zone](https://link.springer.com/article/10.1007/s00382-018-4460-4), by Nielsen et al. (2019), DOI [10.1007/s00382-018-4460-4](https://doi.org/10.1007/s00382-018-4460-4). Each source has two independent stages:
 
 1. preprocessing atmospheric fields into the CSV predictors required by the statistical model;
 2. calculating the SACZ index for the configured year or CMIP6 period.
@@ -256,3 +256,7 @@ See [`docs/apptainer.md`](docs/apptainer.md) for the binding requirements.
 ## Current limitations
 
 The scientific assets listed in [Required runtime assets](#required-runtime-assets) are pending addition to this repository. The workflow infrastructure is prepared for them, but preprocessing cannot run until `libs`, the area shapefile, and the coefficient files are available.
+
+## Scientific reference
+
+Nielsen DM, Belém AL, Marton E, Cataldi M (2019). Dynamics-based regression models for the South Atlantic Convergence Zone. *Climate Dynamics*, 52, 5527–5553. [Article](https://link.springer.com/article/10.1007/s00382-018-4460-4) · [DOI](https://doi.org/10.1007/s00382-018-4460-4).
