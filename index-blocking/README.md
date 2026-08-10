@@ -1,6 +1,6 @@
 # RiskClima atmospheric blocking index
 
-This directory contains workflows to generate monthly reference climatologies and calculate daily atmospheric blocking series from ERA5 and CMIP6 data.
+This directory contains workflows to generate monthly reference climatologies and calculate daily atmospheric blocking series from ERA5 and CMIP6 data. The scientific basis for the index is described in [Creation and Assessment of an Index for Atmospheric Blockings in Brazil’s Central Region](https://irispublishers.com/ahm/fulltext/creation-and-assessment-of-an-index-for-atmospheric.ID.000519.php), by Cataldi et al. (2024), DOI [10.33552/AHM.2024.01.000519](https://doi.org/10.33552/AHM.2024.01.000519).
 
 The blocking condition requires positive relative vorticity at 850 and 500 hPa and a positive 500 hPa geopotential anomaly. The conditions must persist for three consecutive days. Once the threshold is reached, the preceding days in that event are classified as blocking.
 
@@ -200,3 +200,7 @@ See [`docs/apptainer.md`](docs/apptainer.md) for the operational commands.
 ## Documentation
 
 See [`docs/blocking-index.md`](docs/blocking-index.md) for the scientific workflow, variable definitions, geographic regions, and ERA5/CMIP6 differences.
+
+## Scientific reference
+
+Cataldi M, Ribeiro EM, Andrade LS, Lima AP, Almeida GLM, Pereira TRAP (2024). Creation and Assessment of an Index for Atmospheric Blockings in Brazil’s Central Region. *Advances in Hydrology & Meteorology*, 1(4). [Article](https://irispublishers.com/ahm/fulltext/creation-and-assessment-of-an-index-for-atmospheric.ID.000519.php) · [DOI](https://doi.org/10.33552/AHM.2024.01.000519).
