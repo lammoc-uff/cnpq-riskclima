@@ -6,7 +6,7 @@ This directory contains one Python package, `riskclima-xhwi`, with workflows for
 - [ERA5-Land](era5land/README.md)
 - [CMIP6](cmip6/README.md)
 
-The workflows calculate monthly accumulated Extreme Heatwave Index (XHWI) fields with xarray and spatial PyTorch blocks. The scientific reference is [Development of a New Generalizable, Multivariate, and Physical-Body-Response-Based Extreme Heatwave Index](https://www.mdpi.com/2073-4433/15/12/1541).
+The workflows calculate monthly accumulated Extreme Heatwave Index (XHWI) fields with xarray and spatial PyTorch blocks. The scientific reference is [Development of a New Generalizable, Multivariate, and Physical-Body-Response-Based Extreme Heatwave Index](https://www.mdpi.com/2073-4433/15/12/1541), DOI [10.3390/atmos15121541](https://doi.org/10.3390/atmos15121541).
 
 ## Install
 
@@ -174,3 +174,7 @@ make era5-months ARGS="--months-to-run 1 2 3 --part-existing-policy overwrite"
 ```
 
 See the **[complete setup and usage guide](docs/getting-started.md)** for configuration, command options, file policies, and outputs.
+
+## Scientific reference
+
+Cataldi M, Galves VLV, Sphaier LA, Garnés-Morales G, Gallardo V, Molina-Párraga L, Montávez JP, Jimenez-Guerrero P (2024). Development of a New Generalizable, Multivariate, and Physical-Body-Response-Based Extreme Heatwave Index. *Atmosphere*, 15(12), 1541. [Article](https://www.mdpi.com/2073-4433/15/12/1541) · [DOI](https://doi.org/10.3390/atmos15121541).
