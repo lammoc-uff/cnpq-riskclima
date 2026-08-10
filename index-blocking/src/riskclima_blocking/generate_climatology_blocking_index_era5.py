@@ -11,11 +11,12 @@ import subprocess
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from multiprocessing import cpu_count
 from pathlib import Path
-from typing import List, Tuple
 
 import cdsapi
 import metpy.calc as mpcalc
 import xarray as xr
+
+from riskclima_blocking.config import BlockingSettings
 
 # Logging
 logging.basicConfig(
@@ -26,11 +27,13 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 # Configuration
-CLIM_PERIOD = "60_90"
-START_YEAR = 1960
-END_YEAR = 1990
-
-DATA_DIR = Path("climatology_data")
+CLIM_PERIOD = "90_20"
+START_YEAR = 1991
+END_YEAR = 2020
+DATA_DIR = Path()
+PROCESSED_DIR = Path()
+CDS_URL = ""
+CDS_KEY: str | None = None
 
 # Geographic domain: [north, west, south, east]
 AREA = [10, -70, -35, -30]
@@ -42,24 +45,45 @@ LEVELS = ["500", "850"]
 N_WORKERS = min(5, max(1, cpu_count() // 2))
 
 # Paths
-FILE_CONCAT_MONTHLY = DATA_DIR / f"era5_monthly_{CLIM_PERIOD}.nc"
-FILE_GZ_500 = DATA_DIR / f"gz500_monthly_{CLIM_PERIOD}.nc"
-FILE_VORT_RAW = DATA_DIR / f"vort_monthly_raw_{CLIM_PERIOD}.nc"
+FILE_CONCAT_MONTHLY = Path()
+FILE_GZ_500 = Path()
+FILE_VORT_RAW = Path()
 
-FILE_CLIM_GZ = DATA_DIR / f"clima_gz_{CLIM_PERIOD}.nc"
-FILE_CLIM_VORT = DATA_DIR / f"clima_vort_{CLIM_PERIOD}.nc"
+FILE_CLIM_GZ = Path()
+FILE_CLIM_VORT = Path()
+
+
+def configure(settings: BlockingSettings) -> None:
+    """Apply shared settings to the ERA5 climatology workflow."""
+    global CLIM_PERIOD, DATA_DIR, END_YEAR, FILE_CLIM_GZ, FILE_CLIM_VORT
+    global FILE_CONCAT_MONTHLY, FILE_GZ_500, FILE_VORT_RAW, N_WORKERS, PROCESSED_DIR
+    global START_YEAR, CDS_URL, CDS_KEY
+    CLIM_PERIOD = settings.era5_climatology_label
+    START_YEAR = settings.era5_climatology_start_year
+    END_YEAR = settings.era5_climatology_end_year
+    DATA_DIR = settings.path(settings.era5_raw_directory)
+    PROCESSED_DIR = settings.path(settings.era5_processed_directory)
+    CDS_URL = settings.cdsapi_url
+    CDS_KEY = settings.cds_key()
+    N_WORKERS = settings.era5_download_workers
+    FILE_CONCAT_MONTHLY = PROCESSED_DIR / f"era5_monthly_{CLIM_PERIOD}.nc"
+    FILE_GZ_500 = PROCESSED_DIR / f"gz500_monthly_{CLIM_PERIOD}.nc"
+    FILE_VORT_RAW = PROCESSED_DIR / f"vort_monthly_raw_{CLIM_PERIOD}.nc"
+    FILE_CLIM_GZ = PROCESSED_DIR / f"clima_gz_{CLIM_PERIOD}.nc"
+    FILE_CLIM_VORT = PROCESSED_DIR / f"clima_vort_{CLIM_PERIOD}.nc"
 
 
 # Download ERA5 monthly means
 
-def _worker_download(args: Tuple[int, Path]) -> Tuple[int, Path]:
+
+def _worker_download(args: tuple[int, Path]) -> tuple[int, Path]:
     """Download ERA5 monthly means for one year."""
     year, data_dir = args
     file = data_dir / f"_monthly_{CLIM_PERIOD}_{year}.nc"
     if file.exists():
         return year, file
 
-    c = cdsapi.Client(quiet=True)
+    c = cdsapi.Client(url=CDS_URL, key=CDS_KEY, quiet=True)
     c.retrieve(
         "reanalysis-era5-pressure-levels-monthly-means",
         {
@@ -70,10 +94,10 @@ def _worker_download(args: Tuple[int, Path]) -> Tuple[int, Path]:
                 "v_component_of_wind",
             ],
             "pressure_level": LEVELS,
-            "year":  [str(year)],
+            "year": [str(year)],
             "month": [f"{m:02d}" for m in range(1, 13)],
-            "time":  ["00:00"],
-            "area":  AREA,
+            "time": ["00:00"],
+            "area": AREA,
             "data_format": "netcdf",
             "download_format": "unarchived",
         },
@@ -82,28 +106,23 @@ def _worker_download(args: Tuple[int, Path]) -> Tuple[int, Path]:
     return year, file
 
 
-def download_monthly_means() -> List[Path]:
+def download_monthly_means() -> list[Path]:
     """Download yearly ERA5 monthly-mean files in parallel."""
     if FILE_CONCAT_MONTHLY.exists():
         log.info(f"Concatenated file already exists: {FILE_CONCAT_MONTHLY}. Skipping download.")
         return []
 
     years = list(range(START_YEAR, END_YEAR + 1))
-    already_cached = sum(
-        1 for y in years if (DATA_DIR / f"_monthly_{CLIM_PERIOD}_{y}.nc").exists()
-    )
+    already_cached = sum(1 for y in years if (DATA_DIR / f"_monthly_{CLIM_PERIOD}_{y}.nc").exists())
     log.info(
-        f"Download: {len(years)} years ({START_YEAR}–{END_YEAR}), "
+        f"Download: {len(years)} years ({START_YEAR}-{END_YEAR}), "
         f"{already_cached} cached, {len(years) - already_cached} to download "
         f"with {N_WORKERS} workers."
     )
 
-    results = {}
+    results: dict[int, Path] = {}
     with ProcessPoolExecutor(max_workers=N_WORKERS) as executor:
-        futures = {
-            executor.submit(_worker_download, (year, DATA_DIR)): year
-            for year in years
-        }
+        futures = {executor.submit(_worker_download, (year, DATA_DIR)): year for year in years}
         for future in as_completed(futures):
             year = futures[future]
             try:
@@ -119,7 +138,8 @@ def download_monthly_means() -> List[Path]:
 
 # Concatenate annual files
 
-def concatenate_files(files: List[Path]) -> xr.Dataset:
+
+def concatenate_files(files: list[Path]) -> xr.Dataset:
     """Concatenate annual ERA5 files into one monthly dataset."""
     if FILE_CONCAT_MONTHLY.exists():
         log.info(f"Opening concatenated file: {FILE_CONCAT_MONTHLY}")
@@ -134,6 +154,7 @@ def concatenate_files(files: List[Path]) -> xr.Dataset:
 
 # Extract 500 hPa geopotential
 
+
 def extract_gz500(ds: xr.Dataset) -> xr.Dataset:
     """Extract 500 hPa geopotential and save it as an intermediate file."""
     if FILE_GZ_500.exists():
@@ -142,12 +163,8 @@ def extract_gz500(ds: xr.Dataset) -> xr.Dataset:
 
     log.info("Extracting geopotential (z) at 500 hPa...")
 
-    dim_level = next(
-        d for d in ["pressure_level", "level", "plev"] if d in ds.dims
-    )
-    dim_time = next(
-        d for d in ["valid_time", "time"] if d in ds.dims or d in ds.coords
-    )
+    dim_level = next(d for d in ["pressure_level", "level", "plev"] if d in ds.dims)
+    dim_time = next(d for d in ["valid_time", "time"] if d in ds.dims or d in ds.coords)
 
     gz500 = ds["z"].sel({dim_level: 500})
     gz500.attrs["long_name"] = "Geopotential"
@@ -165,6 +182,7 @@ def extract_gz500(ds: xr.Dataset) -> xr.Dataset:
 
 # Relative vorticity
 
+
 def calculate_vorticity(ds: xr.Dataset) -> xr.Dataset:
     """Calculate relative vorticity at 500 and 850 hPa with MetPy."""
     if FILE_VORT_RAW.exists():
@@ -173,12 +191,8 @@ def calculate_vorticity(ds: xr.Dataset) -> xr.Dataset:
 
     log.info("Calculating relative vorticity (500 hPa and 850 hPa)...")
 
-    dim_level = next(
-        d for d in ["pressure_level", "level", "plev"] if d in ds.dims
-    )
-    dim_time = next(
-        d for d in ["valid_time", "time"] if d in ds.dims or d in ds.coords
-    )
+    dim_level = next(d for d in ["pressure_level", "level", "plev"] if d in ds.dims)
+    dim_time = next(d for d in ["valid_time", "time"] if d in ds.dims or d in ds.coords)
 
     vort_list = []
     for level in [500, 850]:
@@ -219,7 +233,8 @@ def calculate_vorticity(ds: xr.Dataset) -> xr.Dataset:
 
 # Monthly climatology
 
-def _run_cdo(cmd: List[str]) -> None:
+
+def _run_cdo(cmd: list[str]) -> None:
     """Run a CDO command and raise RuntimeError if it fails."""
     log.info(f"  CDO: {' '.join(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -233,21 +248,22 @@ def calculate_cdo_climatology(input_file: Path, output_file: Path) -> None:
         log.info(f"Climatology already exists: {output_file}. Skipping.")
         return
 
-    log.info(
-        f"Calculating climatology (ymonmean): "
-        f"{input_file.name} → {output_file.name}"
-    )
+    log.info(f"Calculating climatology (ymonmean): {input_file.name} → {output_file.name}")
     _run_cdo(["cdo", "ymonmean", str(input_file), str(output_file)])
     log.info(f"Climatology saved: {output_file}")
 
 
 # Run processing
 
+
 def main() -> None:
+    """Generate the configured ERA5 monthly climatology."""
+    configure(BlockingSettings())
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
     log.info("=" * 60)
-    log.info(f"ERA5 Climatology — period {START_YEAR}–{END_YEAR} [{CLIM_PERIOD}]")
+    log.info(f"ERA5 Climatology - period {START_YEAR}-{END_YEAR} [{CLIM_PERIOD}]")
     log.info("=" * 60)
 
     # Step 1: download monthly means
@@ -281,8 +297,7 @@ def main() -> None:
         ds_check = xr.open_dataset(file)
         n_months = len(ds_check.time) if "time" in ds_check.dims else "?"
         vars_str = ", ".join(
-            f"{v} ({ds_check[v].attrs.get('units', '?')})"
-            for v in ds_check.data_vars
+            f"{v} ({ds_check[v].attrs.get('units', '?')})" for v in ds_check.data_vars
         )
         log.info(f"  {file.name}: {n_months} timesteps | vars: {vars_str}")
         ds_check.close()

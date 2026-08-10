@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# coding: utf-8
 """
 Generate a monthly 500 hPa geopotential height climatology from CMIP6 data.
 
@@ -14,6 +13,8 @@ from pathlib import Path
 
 import numpy as np
 import xarray as xr
+
+from riskclima_blocking.config import BlockingSettings
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 xr.set_options(use_new_combine_kwarg_defaults=True)
@@ -35,17 +36,33 @@ CLIM_END = 2010
 CLIM_LABEL = "80_10"
 
 # Update this path to the directory containing the CMIP6 Zarr stores
-CMIP6_DATA_DIR = Path("/path/to/CMIP6")
+CMIP6_DATA_DIR = Path()
 
 
 # Project root
-BLOCKING_BASE = Path(__file__).resolve().parent
-CLIM_OUTPUT_DIR = BLOCKING_BASE / "climatology_data"
-CLIM_FILE = CLIM_OUTPUT_DIR / f"{SOURCE_ID}_clima_zg500_{CLIM_LABEL}.nc"
+BLOCKING_BASE = Path()
+CLIM_OUTPUT_DIR = Path()
+CLIM_FILE = Path()
 HIST_EXPERIMENT = "historical"
 
 
+def configure(settings: BlockingSettings) -> None:
+    """Apply shared settings to the CMIP6 climatology workflow."""
+    global BLOCKING_BASE, CLIM_END, CLIM_FILE, CLIM_LABEL, CLIM_OUTPUT_DIR
+    global CLIM_START, CMIP6_DATA_DIR, HIST_EXPERIMENT, SOURCE_ID
+    BLOCKING_BASE = settings.path(Path())
+    SOURCE_ID = settings.cmip6_source_id
+    HIST_EXPERIMENT = settings.cmip6_climatology_experiment_id
+    CLIM_START = settings.cmip6_climatology_start_year
+    CLIM_END = settings.cmip6_climatology_end_year
+    CLIM_LABEL = settings.cmip6_climatology_label
+    CMIP6_DATA_DIR = settings.path(settings.cmip6_data_directory)
+    CLIM_OUTPUT_DIR = settings.path(settings.cmip6_processed_directory)
+    CLIM_FILE = CLIM_OUTPUT_DIR / f"{SOURCE_ID}_clima_zg500_{CLIM_LABEL}.nc"
+
+
 # Helper functions
+
 
 def find_zarr(source_id: str, experiment_id: str, variable_id: str) -> Path | None:
     """Return the preferred available Zarr store for a CMIP6 variable."""
@@ -88,15 +105,16 @@ def select_level(da: xr.DataArray, level_hpa: int) -> xr.DataArray:
     plev_vals = da["plev"].values
     plev_pa = float(level_hpa * 100)
     closest = plev_vals[np.argmin(np.abs(plev_vals - plev_pa))]
-    log.info(
-        f"  Level {level_hpa} hPa → closest plev = {closest/100:.0f} hPa ({closest:.0f} Pa)"
-    )
+    log.info(f"  Level {level_hpa} hPa → closest plev = {closest / 100:.0f} hPa ({closest:.0f} Pa)")
     return da.sel(plev=closest, drop=True)
 
 
 # Generate climatology
 
+
 def main() -> None:
+    """Generate the configured CMIP6 monthly climatology."""
+    configure(BlockingSettings())
     if CLIM_FILE.exists():
         log.info(f"Climatology already exists, skipping: {CLIM_FILE}")
         return
@@ -104,7 +122,7 @@ def main() -> None:
     CLIM_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     log.info("=" * 65)
-    log.info(f"CMIP6 zg500 climatology — {SOURCE_ID}  ({CLIM_START}–{CLIM_END})")
+    log.info(f"CMIP6 zg500 climatology - {SOURCE_ID}  ({CLIM_START}-{CLIM_END})")
     log.info("=" * 65)
 
     zarr_path = find_zarr(SOURCE_ID, HIST_EXPERIMENT, "zg")
@@ -123,11 +141,11 @@ def main() -> None:
     # Select the reference period
     da_clim = da_zg.sel(time=slice(str(CLIM_START), str(CLIM_END)))
     n_days = da_clim.sizes["time"]
-    log.info(f"Climatology period: {n_days} days ({CLIM_START}–{CLIM_END})")
+    log.info(f"Climatology period: {n_days} days ({CLIM_START}-{CLIM_END})")
 
     if n_days == 0:
         raise ValueError(
-            f"No data found for {CLIM_START}–{CLIM_END} in {zarr_path}.\n"
+            f"No data found for {CLIM_START}-{CLIM_END} in {zarr_path}.\n"
             f"Check that the historical Zarr covers this period."
         )
 
@@ -148,7 +166,7 @@ def main() -> None:
 
     log.info(f"Saved : {CLIM_FILE}")
     log.info(f"Dims  : {dict(clim_ds.dims)}")
-    log.info(f"zg range : {float(clim.min()):.1f} – {float(clim.max()):.1f} m")
+    log.info(f"zg range : {float(clim.min()):.1f} - {float(clim.max()):.1f} m")
     log.info("Done.")
 
 

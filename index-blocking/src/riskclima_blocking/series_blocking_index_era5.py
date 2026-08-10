@@ -5,18 +5,21 @@ The script downloads the required pressure-level fields, computes relative
 vorticity at 850 and 500 hPa, calculates 500 hPa geopotential anomalies,
 applies the blocking persistence criterion, and saves daily indicators by region.
 """
+
 import gc
 import logging
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from multiprocessing import cpu_count
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any
 
 import cdsapi
 import metpy.calc as mpcalc
 import numpy as np
 import pandas as pd
 import xarray as xr
+
+from riskclima_blocking.config import BlockingSettings
 
 # Logging
 logging.basicConfig(
@@ -34,30 +37,52 @@ PERSISTENCE_DAYS = 3
 
 CLIM_PERIOD = "90_20"
 
-DATA_DIR = Path("era5_data")
-OUTPUT_DIR = Path("historical_output") / CLIM_PERIOD
+DATA_DIR = Path()
+PROCESSED_DIR = Path()
+OUTPUT_DIR = Path()
 
-FILE_CLIM_GZ = Path(f"climatology_data/clima_gz_{CLIM_PERIOD}.nc")
-FILE_ERA5 = DATA_DIR / "era5_uv_gz_historical.nc"
+FILE_CLIM_GZ = Path()
+FILE_ERA5 = Path()
 
 # Limit parallel downloads to five workers
 N_WORKERS = min(5, max(1, cpu_count() // 2))
+CDS_URL = ""
+CDS_KEY: str | None = None
 
 # Geographic areas
-AREAS: Dict[str, Dict[str, float]] = {
-    "total":    {"lat_min": -25.0, "lat_max": -10.0, "lon_min": -60.0, "lon_max": -40.0},
-    "north":    {"lat_min": -17.5, "lat_max": -10.0, "lon_min": -60.0, "lon_max": -40.0},
+AREAS: dict[str, dict[str, float]] = {
+    "total": {"lat_min": -25.0, "lat_max": -10.0, "lon_min": -60.0, "lon_max": -40.0},
+    "north": {"lat_min": -17.5, "lat_max": -10.0, "lon_min": -60.0, "lon_max": -40.0},
     "north_h1": {"lat_min": -17.5, "lat_max": -10.0, "lon_min": -60.0, "lon_max": -50.0},
     "north_h2": {"lat_min": -17.5, "lat_max": -10.0, "lon_min": -50.0, "lon_max": -40.0},
-    "south":      {"lat_min": -25.0, "lat_max": -17.5, "lon_min": -60.0, "lon_max": -40.0},
-    "south_h1":   {"lat_min": -25.0, "lat_max": -17.5, "lon_min": -60.0, "lon_max": -50.0},
-    "south_h2":   {"lat_min": -25.0, "lat_max": -17.5, "lon_min": -50.0, "lon_max": -40.0},
+    "south": {"lat_min": -25.0, "lat_max": -17.5, "lon_min": -60.0, "lon_max": -40.0},
+    "south_h1": {"lat_min": -25.0, "lat_max": -17.5, "lon_min": -60.0, "lon_max": -50.0},
+    "south_h2": {"lat_min": -25.0, "lat_max": -17.5, "lon_min": -50.0, "lon_max": -40.0},
 }
+
+
+def configure(settings: BlockingSettings) -> None:
+    """Apply shared settings to the ERA5 series workflow."""
+    global CLIM_PERIOD, CDS_KEY, CDS_URL, DATA_DIR, END_YEAR, FILE_CLIM_GZ
+    global FILE_ERA5, N_WORKERS, OUTPUT_DIR, PROCESSED_DIR, PERSISTENCE_DAYS, START_YEAR
+    CLIM_PERIOD = settings.era5_climatology_label
+    START_YEAR = settings.era5_series_start_year
+    END_YEAR = settings.era5_series_end_year
+    PERSISTENCE_DAYS = settings.persistence_days
+    DATA_DIR = settings.path(settings.era5_raw_directory)
+    PROCESSED_DIR = settings.path(settings.era5_processed_directory)
+    OUTPUT_DIR = settings.path(settings.era5_results_directory) / CLIM_PERIOD
+    FILE_CLIM_GZ = PROCESSED_DIR / f"clima_gz_{CLIM_PERIOD}.nc"
+    FILE_ERA5 = DATA_DIR / "era5_uv_gz_historical.nc"
+    N_WORKERS = settings.era5_download_workers
+    CDS_URL = settings.cdsapi_url
+    CDS_KEY = settings.cds_key()
 
 
 # Download ERA5 data
 
-def _worker_download(args: Tuple[int, Path]) -> Tuple[int, Path]:
+
+def _worker_download(args: tuple[int, Path]) -> tuple[int, Path]:
     """Download ERA5 pressure-level fields for one year."""
     year, data_dir = args
     file = data_dir / f"_era5_{year}.nc"
@@ -65,18 +90,18 @@ def _worker_download(args: Tuple[int, Path]) -> Tuple[int, Path]:
         log.info(f"  {year}: file already exists, skipping download.")
         return year, file
 
-    c = cdsapi.Client(quiet=True)
+    c = cdsapi.Client(url=CDS_URL, key=CDS_KEY, quiet=True)
     c.retrieve(
         "reanalysis-era5-pressure-levels",
         {
             "product_type": ["reanalysis"],
             "variable": ["u_component_of_wind", "v_component_of_wind", "geopotential"],
             "pressure_level": ["500", "850"],
-            "year":  [str(year)],
+            "year": [str(year)],
             "month": [f"{m:02d}" for m in range(1, 13)],
-            "day":   [f"{d:02d}" for d in range(1, 32)],
-            "time":  ["12:00"],
-            "area":  [10, -70, -35, -30],   # [N, W, S, E]
+            "day": [f"{d:02d}" for d in range(1, 32)],
+            "time": ["12:00"],
+            "area": [10, -70, -35, -30],  # [N, W, S, E]
             "data_format": "netcdf",
             "download_format": "unarchived",
         },
@@ -93,9 +118,9 @@ def download_era5() -> None:
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     years = list(range(START_YEAR, END_YEAR + 1))
-    log.info(f"Downloading ERA5 {START_YEAR}–{END_YEAR} with {N_WORKERS} workers...")
+    log.info(f"Downloading ERA5 {START_YEAR}-{END_YEAR} with {N_WORKERS} workers...")
 
-    results: Dict[int, Path] = {}
+    results: dict[int, Path] = {}
     with ProcessPoolExecutor(max_workers=N_WORKERS) as ex:
         futures = {ex.submit(_worker_download, (y, DATA_DIR)): y for y in years}
         for f in as_completed(futures):
@@ -111,7 +136,8 @@ def download_era5() -> None:
 
 # Regional means
 
-def crop_area_mean(da: xr.DataArray, area: Dict[str, float]) -> xr.DataArray:
+
+def crop_area_mean(da: xr.DataArray, area: dict[str, float]) -> xr.DataArray:
     """Crop to geographic bounds and return the spatial-mean time series."""
     lat_ok = (da.latitude >= area["lat_min"]) & (da.latitude <= area["lat_max"])
     lon_ok = (da.longitude >= area["lon_min"]) & (da.longitude <= area["lon_max"])
@@ -120,11 +146,12 @@ def crop_area_mean(da: xr.DataArray, area: Dict[str, float]) -> xr.DataArray:
 
 # Process one year
 
+
 def process_year(
     ds_full: xr.Dataset,
     year: int,
-    clim_np: np.ndarray,   # shape (12, lat, lon)
-) -> Dict[str, Dict[str, np.ndarray]]:
+    clim_np: Any,
+) -> dict[str, dict[str, Any]]:
     """Compute yearly blocking predictors and spatial means for each region."""
     time_coord = "valid_time" if "valid_time" in ds_full.dims else "time"
     year_mask = ds_full[time_coord].dt.year == year
@@ -168,28 +195,28 @@ def process_year(
         z_year = z_year.rename({"valid_time": "time"})
 
     month_idx = [int(m) - 1 for m in z_year.time.dt.month.values]
-    clim_broadcast = clim_np[month_idx]           # time, latitude, longitude
-    anom3d = z_year.values - clim_broadcast       
+    clim_broadcast = clim_np[month_idx]  # time, latitude, longitude
+    anom3d = z_year.values - clim_broadcast
 
     anom3d_da = xr.DataArray(
         anom3d,
         dims=["time", "latitude", "longitude"],
         coords={
-            "time":      z_year.time,
-            "latitude":  z_year.latitude,
+            "time": z_year.time,
+            "latitude": z_year.latitude,
             "longitude": z_year.longitude,
         },
     )
     del z_year, anom3d, clim_broadcast
 
     # Calculate spatial means for each region
-    result: Dict[str, Dict[str, np.ndarray]] = {}
+    result: dict[str, dict[str, Any]] = {}
     for name, area in AREAS.items():
         result[name] = {
-            "time":       timestamps,
-            "vort850":    crop_area_mean(vort850_3d, area).values,
-            "vort500":    crop_area_mean(vort500_3d, area).values,
-            "anom_gz500": crop_area_mean(anom3d_da,  area).values,
+            "time": timestamps,
+            "vort850": crop_area_mean(vort850_3d, area).values,
+            "vort500": crop_area_mean(vort500_3d, area).values,
+            "anom_gz500": crop_area_mean(anom3d_da, area).values,
         }
 
     del vort850_3d, vort500_3d, anom3d_da, ds_year
@@ -200,6 +227,7 @@ def process_year(
 
 
 # Blocking criterion
+
 
 def calculate_blockings(df: pd.DataFrame) -> pd.Series:
     """Apply the blocking criterion and return a daily boolean series."""
@@ -227,7 +255,10 @@ def calculate_blockings(df: pd.DataFrame) -> pd.Series:
 
 # Run processing
 
+
 def main() -> None:
+    """Generate the configured ERA5 daily blocking series."""
+    configure(BlockingSettings())
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -264,7 +295,7 @@ def main() -> None:
     total_years = len(years)
     log.info(f"=== Step 4: Processing {total_years} years ({START_YEAR}-{END_YEAR}) ===")
 
-    accumulators: Dict[str, List[Dict[str, np.ndarray]]] = {name: [] for name in AREAS}
+    accumulators: dict[str, list[dict[str, Any]]] = {name: [] for name in AREAS}
 
     for idx, year in enumerate(years, start=1):
         log.info(f"--- Year {year} ({idx}/{total_years}) ---")
@@ -274,7 +305,7 @@ def main() -> None:
 
     # Step 5: concatenate yearly series and apply the blocking criterion
     log.info("=== Step 5: Concatenating series and calculating blockings ===")
-    consolidated_series: Dict[str, pd.Series] = {}
+    consolidated_series: dict[str, pd.Series] = {}
 
     for name in AREAS:
         slices = accumulators[name]
@@ -282,18 +313,21 @@ def main() -> None:
             log.warning(f"  [{name}] no data, skipping.")
             continue
 
-        times = np.concatenate([s["time"]        for s in slices])
-        v850 = np.concatenate([s["vort850"]      for s in slices])
-        v500 = np.concatenate([s["vort500"]      for s in slices])
-        anom_gz = np.concatenate([s["anom_gz500"]   for s in slices])
+        times = np.concatenate([s["time"] for s in slices])
+        v850 = np.concatenate([s["vort850"] for s in slices])
+        v500 = np.concatenate([s["vort500"] for s in slices])
+        anom_gz = np.concatenate([s["anom_gz500"] for s in slices])
 
-        df = pd.DataFrame(
-            {"vort850": v850, "vort500": v500, "anom_gz500": anom_gz},
-            index=pd.DatetimeIndex(times, name="date"),
-        ).dropna().sort_index()
+        df = (
+            pd.DataFrame(
+                {"vort850": v850, "vort500": v500, "anom_gz500": anom_gz},
+                index=pd.DatetimeIndex(times, name="date"),
+            )
+            .dropna()
+            .sort_index()
+        )
 
-        log.info(f"  [{name}] {df.index[0].date()} -> {df.index[-1].date()} "
-                 f"({len(df)} days)")
+        log.info(f"  [{name}] {df.index[0].date()} -> {df.index[-1].date()} ({len(df)} days)")
 
         df.to_csv(OUTPUT_DIR / f"{name}_vars.csv", float_format="%.6e")
 
@@ -318,7 +352,7 @@ def main() -> None:
     log.info(f"  Period      : {START_YEAR}-{END_YEAR}")
     log.info(f"  Output      : {OUTPUT_DIR}/")
     log.info(f"  {'Area':<12} {'Days':>6} {'%':>6}")
-    log.info(f"  {'-'*26}")
+    log.info(f"  {'-' * 26}")
     for name, series in consolidated_series.items():
         n = int(series.sum())
         pct = 100.0 * n / len(series)

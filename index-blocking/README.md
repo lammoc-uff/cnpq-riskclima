@@ -1,391 +1,202 @@
-# RiskClima Atmospheric Blocking Index
+# RiskClima atmospheric blocking index
 
-This directory contains workflows to generate monthly climatologies and
-calculate daily atmospheric blocking index series using two data sources:
+This directory contains workflows to generate monthly reference climatologies and calculate daily atmospheric blocking series from ERA5 and CMIP6 data.
 
-- **ERA5**
-- **CMIP6**
+The blocking condition requires positive relative vorticity at 850 and 500 hPa and a positive 500 hPa geopotential anomaly. The conditions must persist for three consecutive days. Once the threshold is reached, the preceding days in that event are classified as blocking.
 
-Both workflows apply the atmospheric blocking criterion described by
-Cataldi et al. (2024), based on the persistence of positive relative
-vorticity at 850 and 500 hPa together with a positive 500 hPa
-geopotential or geopotential-height anomaly.
+## Install
 
-The ERA5 and CMIP6 workflows use different preprocessing procedures because
-the datasets differ in data access, variable names, units, coordinate
-conventions, and storage format.
+On Windows, use WSL2 with an Ubuntu or Debian distribution. Install Make and curl:
 
-For a detailed description of the methodology and processing steps, see
-[`docs/blocking-index.md`](docs/blocking-index.md).
-
-## Workflow
-
-For each data source, the processing is divided into two stages:
-
-1. generation of the monthly reference climatology; and
-2. calculation of the daily atmospheric blocking series.
-
-### ERA5
-
-1. `generate_era5_climatology.py`
-   - downloads ERA5 monthly means;
-   - extracts 500 hPa geopotential;
-   - calculates relative vorticity at 500 and 850 hPa; and
-   - generates monthly climatological fields for the selected reference period.
-
-2. `generate_era5_blocking_series.py`
-   - downloads daily ERA5 pressure-level fields;
-   - calculates relative vorticity at 850 and 500 hPa;
-   - calculates 500 hPa geopotential anomalies;
-   - applies the blocking persistence criterion; and
-   - saves regional daily blocking series.
-
-### CMIP6
-
-1. `cmip6_generate_climatology.py`
-   - reads historical CMIP6 geopotential height from local Zarr stores;
-   - selects the reference period and 500 hPa level; and
-   - calculates the monthly 500 hPa geopotential-height climatology.
-
-2. `cmip6_blocking_series.py`
-   - reads CMIP6 zonal wind, meridional wind, and geopotential height;
-   - calculates relative vorticity at 850 and 500 hPa;
-   - calculates 500 hPa geopotential-height anomalies;
-   - applies the blocking persistence criterion; and
-   - saves regional daily blocking series.
-
-## Blocking criterion
-
-A day satisfies the atmospheric blocking condition when all three variables
-are positive:
-
-```text
-vort850 > 0
-AND
-vort500 > 0
-AND
-anom500 > 0
+```bash
+sudo apt update
+sudo apt install -y make curl
 ```
 
-where:
+Fedora:
 
-- `vort850` is relative vorticity at 850 hPa;
-- `vort500` is relative vorticity at 500 hPa; and
-- `anom500` is the 500 hPa geopotential anomaly for ERA5 or
-  geopotential-height anomaly for CMIP6.
-
-The conditions must persist for at least:
-
-```python
-PERSISTENCE_DAYS = 3
+```bash
+sudo dnf install -y make curl
 ```
 
-consecutive days.
+Arch Linux:
 
-Once the persistence threshold is reached, the initial days of the event are
-retroactively classified as blocking.
-
-## Geographic regions
-
-The blocking index is calculated for seven predefined regions:
-
-```text
-total
-norte
-norte_h1
-norte_h2
-sul
-sul_h1
-sul_h2
+```bash
+sudo pacman -S --needed make curl
 ```
 
-These domains cover the blocking-analysis region between approximately
-10°S–25°S and 40°W–60°W and divide it into northern, southern, and
-longitudinal subsectors.
+macOS:
 
-## Requirements
-
-The workflows require a Python environment with packages including:
-
-```text
-numpy
-pandas
-xarray
-metpy
-cdsapi
-netCDF4
+```bash
+xcode-select --install
 ```
 
-Additional requirements depend on the data source.
+Install [uv](https://docs.astral.sh/uv/) and verify the tools:
 
-### ERA5
-
-The ERA5 climatology workflow also requires CDO:
-
-```text
-cdo
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+make --version
+uv --version
 ```
 
-ERA5 data are downloaded through the Copernicus Climate Data Store (CDS) API.
-A valid CDS API configuration is therefore required.
+From the repository root:
 
-### CMIP6
+```bash
+cd index-blocking
+make install
+cp .env.example .env
+```
 
-The CMIP6 workflows expect pressure-level data to be available locally as
-Zarr stores.
+The direct uv equivalent is:
 
-The Zarr datasets used during development are Zarr v3 and therefore require:
-
-```text
-Python >= 3.11
-zarr >= 3
+```bash
+uv sync --frozen
 ```
 
 ## Configure
 
-### ERA5 climatology
+`.env` is the operational configuration. Relative paths resolve from the current working directory, so run commands from `index-blocking`.
 
-Set the reference period in `generate_era5_climatology.py`:
+The default configuration uses:
 
-```python
-CLIM_PERIOD = "60_90"
-START_YEAR = 1960
-END_YEAR = 1990
+```dotenv
+BLOCKING_BASE_DIRECTORY=.
+BLOCKING_PERSISTENCE_DAYS=3
+
+ERA5_CLIMATOLOGY_START_YEAR=1991
+ERA5_CLIMATOLOGY_END_YEAR=2020
+ERA5_CLIMATOLOGY_LABEL=90_20
+ERA5_SERIES_START_YEAR=1960
+ERA5_SERIES_END_YEAR=2025
+ERA5_RAW_DIRECTORY=era5/raw_data
+ERA5_PROCESSED_DIRECTORY=era5/processed_data
+ERA5_RESULTS_DIRECTORY=era5/results
+
+CMIP6_DATA_DIRECTORY=cmip6/raw_data
+CMIP6_PROCESSED_DIRECTORY=cmip6/processed_data
+CMIP6_RESULTS_DIRECTORY=cmip6/results
+CMIP6_SOURCE_ID=BCC-CSM2-MR
+CMIP6_CLIMATOLOGY_EXPERIMENT_ID=historical
+CMIP6_EXPERIMENT_ID=ssp585
+CMIP6_CLIMATOLOGY_START_YEAR=1980
+CMIP6_CLIMATOLOGY_END_YEAR=2010
+CMIP6_SERIES_START_YEAR=2015
+CMIP6_SERIES_END_YEAR=2050
+CMIP6_CLIMATOLOGY_LABEL=80_10
+
+CDSAPI_URL=https://cds.climate.copernicus.eu/api
+CDSAPI_KEY=
+CDSAPI_CONFIG_FILE=~/.cdsapirc
 ```
 
-The geographic domain is defined as:
+`CDSAPI_KEY` takes precedence over `CDSAPI_CONFIG_FILE`. The key is never committed.
 
-```python
-AREA = [10, -70, -35, -30]
+## Workflow
+
+The four stages are independent Make targets. The climatology must exist before its corresponding series is calculated, but Make does not chain the stages automatically.
+
+```bash
+make climatology-era5
+make series-era5
+
+make climatology-cmip6
+make series-cmip6
 ```
 
-using the CDS convention:
+Direct entry points are also available:
+
+```bash
+uv run --frozen riskclima-blocking-climatology-era5
+uv run --frozen riskclima-blocking-series-era5
+uv run --frozen riskclima-blocking-climatology-cmip6
+uv run --frozen riskclima-blocking-series-cmip6
+```
+
+## Requirements
+
+ERA5 requires a valid CDS API configuration, network access to CDS, and the `cdo` executable for monthly climatology generation. CMIP6 requires local pressure-level Zarr stores containing `ua`, `va`, and `zg`.
+
+The workflows do not perform preflight checks or scientific fallbacks for missing external tools or data. Their native errors report unavailable requirements.
+
+## Data layout
 
 ```text
-[north, west, south, east]
+era5/
+├── raw_data/
+├── processed_data/
+└── results/
+
+cmip6/
+├── raw_data/
+├── processed_data/
+└── results/
 ```
 
-### ERA5 blocking series
-
-Set the processing period, persistence threshold, and climatology label in
-`generate_era5_blocking_series.py`:
-
-```python
-START_YEAR = 1960
-END_YEAR = 2025
-
-PERSISTENCE_DAYS = 3
-CLIM_PERIOD = "90_20"
-```
-
-The climatology identified by `CLIM_PERIOD` must already exist before the
-blocking series is calculated.
-
-### CMIP6 climatology
-
-Set the model, reference period, and local CMIP6 data directory in
-`cmip6_generate_climatology.py`:
-
-```python
-SOURCE_ID = "ACCESS-CM2"
-
-CLIM_START = 1980
-CLIM_END = 2010
-CLIM_LABEL = "80_10"
-
-CMIP6_DATA_DIR = Path("/path/to/CMIP6")
-```
-
-The expected CMIP6 directory structure is:
+CMIP6 stores are expected below `CMIP6_DATA_DIRECTORY`:
 
 ```text
 {SOURCE_ID}/{EXPERIMENT_ID}/day/{variable_id}/{grid_label}/*.zarr
 ```
 
-The climatology is calculated from the model's `historical` experiment.
-
-### CMIP6 blocking series
-
-Set the model, experiment, years, persistence threshold, climatology label,
-and local Zarr directory in `cmip6_blocking_series.py`:
-
-```python
-SOURCE_ID = "BCC-CSM2-MR"
-EXPERIMENT_ID = "ssp585"
-
-YEARS = list(range(2015, 2051))
-
-PERSISTENCE_DAYS = 3
-CLIM_LABEL = "80_10"
-
-CMIP6_DATA_DIR = Path("/path/to/CMIP6")
-```
-
-`CLIM_LABEL` must match the climatology generated for the selected model.
-
-## Run
-
-The climatology-generation step must be completed before calculating the
-corresponding blocking series.
-
-### ERA5
-
-Generate the climatology:
-
-```bash
-python generate_era5_climatology.py
-```
-
-Then calculate the daily blocking series:
-
-```bash
-python generate_era5_blocking_series.py
-```
-
-### CMIP6
-
-Generate the model-specific climatology:
-
-```bash
-python cmip6_generate_climatology.py
-```
-
-Then calculate the daily blocking series:
-
-```bash
-python cmip6_blocking_series.py
-```
-
 ## Outputs
 
-### ERA5 climatology
-
-Climatology files are written under:
+ERA5 climatology and results are written below:
 
 ```text
-climatology_data/
+era5/processed_data/clima_gz_90_20.nc
 ```
 
-Main outputs:
+CMIP6 climatology and results are written below:
 
 ```text
-clima_gz_{CLIM_PERIOD}.nc
-clima_vort_{CLIM_PERIOD}.nc
+cmip6/processed_data/{SOURCE_ID}_clima_zg500_80_10.nc
+cmip6/results/{SOURCE_ID}/{EXPERIMENT_ID}/
 ```
 
-The geopotential climatology contains monthly 500 hPa ERA5 geopotential in
-`m² s⁻²`.
+Each series output contains regional predictor files and `daily_blocking_series.csv`. The predefined regions are `total`, `north`, `north_h1`, `north_h2`, `south`, `south_h1`, and `south_h2`.
 
-The vorticity climatology contains monthly relative vorticity at 500 and
-850 hPa.
+## Docker
 
-### ERA5 blocking series
+Build the runtime image from `index-blocking`:
 
-Results are written to:
-
-```text
-historical_output/{CLIM_PERIOD}/
+```bash
+docker build --target runtime -t riskclima-blocking:local .
 ```
 
-For each region:
+Mount the project to keep `.env`, data, and outputs outside the image:
 
-```text
-{area}_vars.csv
+```bash
+docker run --rm \
+  --env-file .env \
+  --volume "$PWD:/work" \
+  --workdir /work \
+  riskclima-blocking:local \
+  riskclima-blocking-series-era5
 ```
 
-contains the daily predictors:
+The image includes Python dependencies and CDO. It does not include climate data or credentials.
 
-```text
-date
-vort850
-vort500
-anom_gz500
+## Apptainer
+
+Convert the Docker runtime image to SIF:
+
+```bash
+docker build --target runtime -t riskclima-blocking:local .
+apptainer build riskclima-blocking.sif docker-daemon://riskclima-blocking:local
 ```
 
-The consolidated binary series is saved as:
+Run an entry point with the project bound at `/work`:
 
-```text
-daily_blocking_series.csv
+```bash
+apptainer exec --cleanenv \
+  --bind "$PWD:/work" \
+  --pwd /work \
+  riskclima-blocking.sif \
+  riskclima-blocking-series-era5
 ```
 
-with:
-
-```text
-0 = no blocking
-1 = blocking
-```
-
-### CMIP6 climatology
-
-The monthly model-specific climatology is written under:
-
-```text
-climatology_data/
-```
-
-using the filename:
-
-```text
-{SOURCE_ID}_clima_zg500_{CLIM_LABEL}.nc
-```
-
-The output contains monthly 500 hPa geopotential height (`zg`) in metres.
-
-### CMIP6 blocking series
-
-Results are written under:
-
-```text
-output/{SOURCE_ID}/{EXPERIMENT_ID}/
-```
-
-For each region:
-
-```text
-{area}_vars.csv
-```
-
-contains:
-
-```text
-date
-vort850
-vort500
-anom_zg500
-```
-
-The consolidated daily series is saved as:
-
-```text
-daily_blocking_series.csv
-```
-
-## ERA5 and CMIP6 differences
-
-| Feature | ERA5 | CMIP6 |
-| --- | --- | --- |
-| Data access | CDS API | Local Zarr stores |
-| Wind variables | `u`, `v` | `ua`, `va` |
-| 500 hPa variable | `z` | `zg` |
-| Height representation | Geopotential (`m² s⁻²`) | Geopotential height (`m`) |
-| Climatology | ERA5 reference-period climatology | Model-specific historical climatology |
-| Main storage format | NetCDF | Zarr |
-| Typical coordinates | `latitude`, `longitude` | `lat`, `lon` |
-
-Although the preprocessing differs, the blocking criterion is applied
-consistently within each dataset because the daily anomaly and its reference
-climatology use the same variable and units.
+See [`docs/apptainer.md`](docs/apptainer.md) for the operational commands.
 
 ## Documentation
 
-See [`docs/blocking-index.md`](docs/blocking-index.md) for additional details
-on:
-
-- the atmospheric blocking criterion;
-- ERA5 climatology generation;
-- ERA5 blocking-series processing;
-- CMIP6 model-specific climatology;
-- CMIP6 blocking-series processing;
-- geographic regions;
-- data formats and units; and
-- differences between the ERA5 and CMIP6 workflows.
+See [`docs/blocking-index.md`](docs/blocking-index.md) for the scientific workflow, variable definitions, geographic regions, and ERA5/CMIP6 differences.

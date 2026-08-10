@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# coding: utf-8
 """
 Calculate daily atmospheric blocking series from CMIP6 data.
 
@@ -12,12 +11,14 @@ import gc
 import logging
 import warnings
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any
 
 import metpy.calc as mpcalc
 import numpy as np
 import pandas as pd
 import xarray as xr
+
+from riskclima_blocking.config import BlockingSettings
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 xr.set_options(use_new_combine_kwarg_defaults=True)
@@ -35,36 +36,54 @@ SOURCE_ID = "BCC-CSM2-MR"
 EXPERIMENT_ID = "ssp585"
 
 YEARS = list(range(2015, 2051))
+START_YEAR = 2015
+END_YEAR = 2050
 
 PERSISTENCE_DAYS = 3
 CLIM_LABEL = "80_10"
 
 # Update this path to the directory containing the CMIP6 Zarr stores.
-CMIP6_DATA_DIR = Path("/path/to/CMIP6")
+CMIP6_DATA_DIR = Path()
 
 
 # Project root
-BLOCKING_BASE = Path(__file__).resolve().parent
-OUTPUT_DIR = BLOCKING_BASE / "output" / SOURCE_ID / EXPERIMENT_ID
-CLIM_FILE = (
-    BLOCKING_BASE / "climatology_data"
-    / f"{SOURCE_ID}_clima_zg500_{CLIM_LABEL}.nc"
-)
+BLOCKING_BASE = Path()
+PROCESSED_DIR = Path()
+OUTPUT_DIR = Path()
+CLIM_FILE = Path()
 
 
 # Geographic areas
-AREAS: Dict[str, Dict[str, float]] = {
-    "total":    {"lat_min": -25.0, "lat_max": -10.0, "lon_min": -60.0, "lon_max": -40.0},
-    "north":    {"lat_min": -17.5, "lat_max": -10.0, "lon_min": -60.0, "lon_max": -40.0},
+AREAS: dict[str, dict[str, float]] = {
+    "total": {"lat_min": -25.0, "lat_max": -10.0, "lon_min": -60.0, "lon_max": -40.0},
+    "north": {"lat_min": -17.5, "lat_max": -10.0, "lon_min": -60.0, "lon_max": -40.0},
     "north_h1": {"lat_min": -17.5, "lat_max": -10.0, "lon_min": -60.0, "lon_max": -50.0},
     "north_h2": {"lat_min": -17.5, "lat_max": -10.0, "lon_min": -50.0, "lon_max": -40.0},
-    "south":      {"lat_min": -25.0, "lat_max": -17.5, "lon_min": -60.0, "lon_max": -40.0},
-    "south_h1":   {"lat_min": -25.0, "lat_max": -17.5, "lon_min": -60.0, "lon_max": -50.0},
-    "sout_h2":   {"lat_min": -25.0, "lat_max": -17.5, "lon_min": -50.0, "lon_max": -40.0},
+    "south": {"lat_min": -25.0, "lat_max": -17.5, "lon_min": -60.0, "lon_max": -40.0},
+    "south_h1": {"lat_min": -25.0, "lat_max": -17.5, "lon_min": -60.0, "lon_max": -50.0},
+    "south_h2": {"lat_min": -25.0, "lat_max": -17.5, "lon_min": -50.0, "lon_max": -40.0},
 }
 
 
+def configure(settings: BlockingSettings) -> None:
+    """Apply shared settings to the CMIP6 series workflow."""
+    global BLOCKING_BASE, CLIM_FILE, CLIM_LABEL, CMIP6_DATA_DIR
+    global END_YEAR, EXPERIMENT_ID, OUTPUT_DIR, PROCESSED_DIR, SOURCE_ID, START_YEAR, YEARS
+    BLOCKING_BASE = settings.path(Path())
+    SOURCE_ID = settings.cmip6_source_id
+    EXPERIMENT_ID = settings.cmip6_experiment_id
+    START_YEAR = settings.cmip6_series_start_year
+    END_YEAR = settings.cmip6_series_end_year
+    YEARS = list(range(START_YEAR, END_YEAR + 1))
+    CLIM_LABEL = settings.cmip6_climatology_label
+    CMIP6_DATA_DIR = settings.path(settings.cmip6_data_directory)
+    PROCESSED_DIR = settings.path(settings.cmip6_processed_directory)
+    OUTPUT_DIR = settings.path(settings.cmip6_results_directory) / SOURCE_ID / EXPERIMENT_ID
+    CLIM_FILE = PROCESSED_DIR / f"{SOURCE_ID}_clima_zg500_{CLIM_LABEL}.nc"
+
+
 # Helper functions
+
 
 def find_zarr(variable_id: str) -> Path | None:
     """Return the preferred available Zarr store for a CMIP6 variable."""
@@ -111,7 +130,7 @@ def open_zarr_var(variable_id: str) -> xr.DataArray | None:
     return ds[variable_id]
 
 
-def _spatial_coords(da: xr.DataArray) -> Tuple[str, str]:
+def _spatial_coords(da: xr.DataArray) -> tuple[str, str]:
     """Return the latitude and longitude coordinate names."""
     lat_name = next((c for c in da.coords if c in ("lat", "latitude")), "lat")
     lon_name = next((c for c in da.coords if c in ("lon", "longitude")), "lon")
@@ -125,7 +144,7 @@ def select_level(da: xr.DataArray, level_hpa: int) -> xr.DataArray:
     return da.sel(plev=closest, drop=True)
 
 
-def crop_area_mean(da: xr.DataArray, area: Dict[str, float]) -> xr.DataArray:
+def crop_area_mean(da: xr.DataArray, area: dict[str, float]) -> xr.DataArray:
     """Crop to geographic bounds and return the spatial-mean time series."""
     lat_name, lon_name = _spatial_coords(da)
     lat_ok = (da[lat_name] >= area["lat_min"]) & (da[lat_name] <= area["lat_max"])
@@ -135,9 +154,8 @@ def crop_area_mean(da: xr.DataArray, area: Dict[str, float]) -> xr.DataArray:
 
 # Vorticity
 
-def compute_vorticity(
-    da_ua: xr.DataArray, da_va: xr.DataArray
-) -> xr.DataArray:
+
+def compute_vorticity(da_ua: xr.DataArray, da_va: xr.DataArray) -> xr.DataArray:
     """Compute relative vorticity from zonal and meridional wind."""
     if "units" not in da_ua.attrs:
         da_ua = da_ua.assign_attrs(units="m/s")
@@ -147,25 +165,22 @@ def compute_vorticity(
     ua_cf = da_ua.to_dataset(name="ua").metpy.parse_cf()["ua"]
     va_cf = da_va.to_dataset(name="va").metpy.parse_cf()["va"]
 
-    vort = (
-        mpcalc.vorticity(ua_cf, va_cf)
-        .metpy.dequantify()
-        .drop_vars("metpy_crs", errors="ignore")
-    )
+    vort = mpcalc.vorticity(ua_cf, va_cf).metpy.dequantify().drop_vars("metpy_crs", errors="ignore")
     return vort
 
 
 # Process one year
+
 
 def process_year(
     da_ua: xr.DataArray,
     da_va: xr.DataArray,
     da_zg: xr.DataArray,
     year: int,
-    clim_np: np.ndarray,    # shape (12, lat, lon) — monthly climatology
-    clim_lat: np.ndarray,
-    clim_lon: np.ndarray,
-) -> Dict[str, Dict]:
+    clim_np: Any,
+    clim_lat: Any,
+    clim_lon: Any,
+) -> dict[str, dict[str, Any]]:
     """Compute yearly blocking predictors and spatial means for each region."""
     year_str = str(year)
 
@@ -202,9 +217,9 @@ def process_year(
         clim_np,
         dims=["month", lat_name, lon_name],
         coords={
-            "month":   np.arange(1, 13),
-            lat_name:  clim_lat,
-            lon_name:  clim_lon,
+            "month": np.arange(1, 13),
+            lat_name: clim_lat,
+            lon_name: clim_lon,
         },
     )
     # Match each day to its monthly climatology
@@ -218,13 +233,13 @@ def process_year(
     del zg500_yr, clim_broadcast
 
     # Calculate spatial means for each region
-    result: Dict[str, Dict] = {}
+    result: dict[str, dict[str, Any]] = {}
     for name, area in AREAS.items():
         result[name] = {
-            "time":       timestamps,
-            "vort850":    crop_area_mean(vort850_3d, area).values,
-            "vort500":    crop_area_mean(vort500_3d, area).values,
-            "anom_zg500": crop_area_mean(anom3d,    area).values,
+            "time": timestamps,
+            "vort850": crop_area_mean(vort850_3d, area).values,
+            "vort500": crop_area_mean(vort500_3d, area).values,
+            "anom_zg500": crop_area_mean(anom3d, area).values,
         }
 
     del vort850_3d, vort500_3d, anom3d
@@ -235,6 +250,7 @@ def process_year(
 
 
 # Blocking criterion
+
 
 def calculate_blockings(df: pd.DataFrame) -> pd.Series:
     """Apply the blocking criterion and return a daily boolean series."""
@@ -262,12 +278,15 @@ def calculate_blockings(df: pd.DataFrame) -> pd.Series:
 
 # Run processing
 
+
 def main() -> None:
+    """Generate the configured CMIP6 daily blocking series."""
+    configure(BlockingSettings())
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     log.info("=" * 65)
     log.info(f"CMIP6 blocking series — {SOURCE_ID} / {EXPERIMENT_ID}")
-    log.info(f"Years: {YEARS[0]}–{YEARS[-1]}  |  Climatology: {CLIM_LABEL}")
+    log.info(f"Years: {YEARS[0]}-{YEARS[-1]}  |  Climatology: {CLIM_LABEL}")
     log.info("=" * 65)
 
     # Step 1: Open Zarr stores
@@ -282,6 +301,8 @@ def main() -> None:
             f"Variables not found for {SOURCE_ID}/{EXPERIMENT_ID}: {missing}\n"
             f"Check {CMIP6_DATA_DIR}/{SOURCE_ID}/{EXPERIMENT_ID}/day/"
         )
+    if da_ua is None or da_va is None or da_zg is None:
+        raise RuntimeError("CMIP6 variables were not loaded")
 
     log.info(f"  ua: {dict(da_ua.sizes)}")
     log.info(f"  va: {dict(da_va.sizes)}")
@@ -296,7 +317,7 @@ def main() -> None:
         )
 
     clim_ds = xr.open_dataset(CLIM_FILE)
-    clim_da = clim_ds["zg"]   # dims: month (1–12), lat, lon
+    clim_da = clim_ds["zg"]  # dims: month (1-12), lat, lon
 
     lat_name_c = next((c for c in clim_da.coords if c in ("lat", "latitude")), "lat")
     lon_name_c = next((c for c in clim_da.coords if c in ("lon", "longitude")), "lon")
@@ -308,7 +329,7 @@ def main() -> None:
 
     # Step 3: process each year
     log.info(f"=== Step 3: Processing {len(YEARS)} years ===")
-    accumulators: Dict[str, List[Dict]] = {name: [] for name in AREAS}
+    accumulators: dict[str, list[dict[str, Any]]] = {name: [] for name in AREAS}
 
     for idx, year in enumerate(YEARS, start=1):
         log.info(f"--- Year {year}  ({idx}/{len(YEARS)}) ---")
@@ -318,7 +339,7 @@ def main() -> None:
 
     # Step 4: concatenate the predictors and apply the blocking criterion
     log.info("=== Step 4: Concatenating series and detecting blockings ===")
-    consolidated_series: Dict[str, pd.Series] = {}
+    consolidated_series: dict[str, pd.Series] = {}
 
     for name in AREAS:
         slices = accumulators[name]
@@ -326,20 +347,21 @@ def main() -> None:
             log.warning(f"  [{name}] no data, skipping.")
             continue
 
-        times = np.concatenate([s["time"]       for s in slices])
-        v850 = np.concatenate([s["vort850"]     for s in slices])
-        v500 = np.concatenate([s["vort500"]     for s in slices])
-        anom_zg = np.concatenate([s["anom_zg500"]  for s in slices])
+        times = np.concatenate([s["time"] for s in slices])
+        v850 = np.concatenate([s["vort850"] for s in slices])
+        v500 = np.concatenate([s["vort500"] for s in slices])
+        anom_zg = np.concatenate([s["anom_zg500"] for s in slices])
 
-        df = pd.DataFrame(
-            {"vort850": v850, "vort500": v500, "anom_zg500": anom_zg},
-            index=pd.DatetimeIndex(times, name="date"),
-        ).dropna().sort_index()
-
-        log.info(
-            f"  [{name}] {df.index[0].date()} → {df.index[-1].date()} "
-            f"({len(df)} days)"
+        df = (
+            pd.DataFrame(
+                {"vort850": v850, "vort500": v500, "anom_zg500": anom_zg},
+                index=pd.DatetimeIndex(times, name="date"),
+            )
+            .dropna()
+            .sort_index()
         )
+
+        log.info(f"  [{name}] {df.index[0].date()} → {df.index[-1].date()} ({len(df)} days)")
 
         df.to_csv(OUTPUT_DIR / f"{name}_vars.csv", float_format="%.6e")
 
@@ -363,10 +385,10 @@ def main() -> None:
     log.info(f"  Model       : {SOURCE_ID}")
     log.info(f"  Experiment  : {EXPERIMENT_ID}")
     log.info(f"  Climatology : {CLIM_LABEL}")
-    log.info(f"  Period      : {YEARS[0]}–{YEARS[-1]}")
+    log.info(f"  Period      : {YEARS[0]}-{YEARS[-1]}")
     log.info(f"  Output      : {OUTPUT_DIR}")
     log.info(f"  {'Area':<12} {'Days':>6} {'%':>6}")
-    log.info(f"  {'-'*26}")
+    log.info(f"  {'-' * 26}")
     for name, series in consolidated_series.items():
         n = int(series.sum())
         pct = 100.0 * n / len(series)
