@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# coding: utf-8
 """
 Preprocess CMIP6 atmospheric fields for the South Atlantic Convergence Zone (SACZ) index.
 
@@ -11,11 +10,14 @@ the resulting time series as CSV files.
 import sys
 import warnings
 from pathlib import Path
+from typing import Any
 
-import numpy as np
 import geopandas as gpd
-import xarray as xr
 import metpy.calc
+import numpy as np
+import xarray as xr
+
+from riskclima_sacz.config import SACZSettings, parse_settings
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 xr.set_options(use_new_combine_kwarg_defaults=True)
@@ -23,36 +25,56 @@ xr.set_options(use_new_combine_kwarg_defaults=True)
 
 # Configuration
 
-SOURCE_ID = "BCC-CSM2-MR"
-EXPERIMENT_ID = "ssp245"
-YEARS = list(range(2015, 2051))
-
-# Update this path to the directory containing the CMIP6 Zarr stores.
-CMIP6_DATA_DIR = Path("/path/to/CMIP6_SACZ")
+SOURCE_ID = ""
+EXPERIMENT_ID = ""
+YEARS: list[int] = []
+CMIP6_DATA_DIR = Path()
+CMIP6_INPUT_DIR = Path()
+YEAR = 0
 
 # Project root
-SACZ_BASE = Path(__file__).resolve().parents[2]
+SACZ_BASE = Path()
 
 
 # Project dependencies
 
 sys.path.insert(0, str(SACZ_BASE))
-from libs import grid as grid_lib, era5 as era5_lib
-
-SHAPE_PATH = SACZ_BASE / "areas" / "sams_index_calc_areas.shp"
+SHAPE_PATH = Path()
+areas: Any = None
+grid_lib: Any = None
+era5_lib: Any = None
 
 # Map the ERA5-style variable names used by the index code to CMIP6 names.
 ERA5_TO_CMIP6 = {
-    "w": "wap",   # vertical pressure velocity (Pa/s)
-    "z": "zg",    # geopotential height (m); CMIP6 zg is already expressed in metres
-    "u": "ua",    # zonal wind (m/s)
-    "v": "va",    # meridional wind (m/s)
+    "w": "wap",  # vertical pressure velocity (Pa/s)
+    "z": "zg",  # geopotential height (m); CMIP6 zg is already expressed in metres
+    "u": "ua",  # zonal wind (m/s)
+    "v": "va",  # meridional wind (m/s)
 }
 
-areas = gpd.read_file(SHAPE_PATH).set_index("area")
+
+def configure(settings: SACZSettings) -> None:
+    """Apply shared settings to the existing preprocessing workflow."""
+    global CMIP6_DATA_DIR, CMIP6_INPUT_DIR, EXPERIMENT_ID, SACZ_BASE
+    global SHAPE_PATH, SOURCE_ID, YEARS, areas
+    global era5_lib, grid_lib
+    SACZ_BASE = settings.path(Path())
+    CMIP6_DATA_DIR = settings.path(settings.cmip6_data_directory)
+    CMIP6_INPUT_DIR = settings.path(settings.cmip6_input_directory)
+    SOURCE_ID = settings.cmip6_source_id
+    EXPERIMENT_ID = settings.cmip6_experiment_id
+    YEARS = list(range(settings.cmip6_start_year, settings.cmip6_end_year + 1))
+    SHAPE_PATH = settings.path(settings.areas_file)
+    areas = gpd.read_file(SHAPE_PATH).set_index("area")
+    from libs import era5 as loaded_era5
+    from libs import grid as loaded_grid
+
+    era5_lib = loaded_era5
+    grid_lib = loaded_grid
 
 
 # Helper functions
+
 
 def find_zarr(variable_id: str) -> Path | None:
     """Return the preferred available Zarr store for a variable."""
@@ -85,8 +107,8 @@ def open_level(variable_id: str, level_hpa: int) -> xr.DataArray | None:
         years = sorted(set(ds[variable_id]["time"].dt.year.values))
         raise ValueError(
             f"Year {YEAR} not found in '{variable_id}' "
-            f"({EXPERIMENT_ID}). Available years: {years[0]}–{years[-1]}"
-        )
+            f"({EXPERIMENT_ID}). Available years: {years[0]}-{years[-1]}"
+        ) from None
 
     plev_vals = da["plev"].values
     if plev_vals.size == 0:
@@ -113,8 +135,7 @@ def open_level(variable_id: str, level_hpa: int) -> xr.DataArray | None:
     else:
         available = sorted(plev_vals / 100)
         raise ValueError(
-            f"Level {level_hpa} hPa not found in '{variable_id}'. "
-            f"Available levels: {available} hPa"
+            f"Level {level_hpa} hPa not found in '{variable_id}'. Available levels: {available} hPa"
         )
 
     da = da.sel(plev=selected_pa, drop=True)
@@ -133,7 +154,7 @@ def open_level(variable_id: str, level_hpa: int) -> xr.DataArray | None:
 
 # Divergence and vorticity
 
-_div_vort_cache: dict = {}
+_div_vort_cache: dict[int, tuple[Any, Any]] = {}
 
 
 def get_div_vort(level_hpa: int):
@@ -168,6 +189,7 @@ def get_div_vort(level_hpa: int):
 
 # Process and save fields
 
+
 def _spatial_dim_names(da: xr.DataArray):
     """Return (lon_name, lat_name) by inspecting coordinate names."""
     lon_name = next((c for c in da.coords if c in ("lon", "longitude")), "lon")
@@ -175,7 +197,7 @@ def _spatial_dim_names(da: xr.DataArray):
     return lon_name, lat_name
 
 
-def process_collection(collection, output_dir: Path):
+def process_collection(collection: Any, output_dir: Path) -> None:
     """Average one variable/level collection over the SACZ index regions."""
     out_filename = f"{collection.out_name}{collection.level}.csv"
     out_path = output_dir / out_filename
@@ -221,11 +243,7 @@ def process_collection(collection, output_dir: Path):
             xdim=lon_name,
             ydim=lat_name,
         )
-        mean_ds = (
-            sliced
-            .mean([lon_name, lat_name])
-            .to_dataset(name=feature.area)
-        )
+        mean_ds = sliced.mean([lon_name, lat_name]).to_dataset(name=feature.area)
         output_ds.append(mean_ds)
 
     if not output_ds:
@@ -234,11 +252,7 @@ def process_collection(collection, output_dir: Path):
             f"Check that the shapefile polygons overlap the model grid."
         )
 
-    outdf = (
-        xr.merge(output_ds)
-        .to_dataframe()
-        .sort_index()
-    )
+    outdf = xr.merge(output_ds).to_dataframe().sort_index()
     outdf.drop(columns=["plev", "spatial_ref"], errors="ignore", inplace=True)
     outdf.index.name = "time"
     outdf.to_csv(out_path)
@@ -247,21 +261,19 @@ def process_collection(collection, output_dir: Path):
 
 # Run preprocessing
 
+
 def process_year(year: int):
-    global YEAR          
-    YEAR = year 
-             
-    output_dir = (
-        SACZ_BASE / "data" / "input"
-        / "cmip6" / SOURCE_ID / EXPERIMENT_ID / str(year)
-    )
+    global YEAR
+    YEAR = year
+
+    output_dir = CMIP6_INPUT_DIR / SOURCE_ID / EXPERIMENT_ID / str(year)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"CMIP6 SACZ preprocessing: {SOURCE_ID} / {EXPERIMENT_ID} / {year}")
     print(f"Data dir : {CMIP6_DATA_DIR}")
     print(f"Output   : {output_dir}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     failed = []
     for collection in era5_lib.feature_collection:
@@ -283,7 +295,10 @@ def process_year(year: int):
     _div_vort_cache.clear()
 
 
-def main():
+def main(arguments: list[str] | None = None) -> None:
+    """Run CMIP6 preprocessing for every configured year."""
+    settings = parse_settings(arguments)
+    configure(settings)
     for year in YEARS:
         process_year(year)
 
