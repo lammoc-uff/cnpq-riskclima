@@ -1,77 +1,52 @@
 # CNPq RiskClima
 
-Project website: ``https://riskclima.com.br``
+RiskClima develops georeferenced climate-risk products for Brazil. The project combines climate observations and reanalyses, CMIP6 projections, regional climate analysis, hydrological and geomorphological applications, socioenvironmental indicators, and data-driven methods.
 
-This repository organizes the main computational components of the ``RiskClima`` project.
+Project website: <https://riskclima.com.br>
+Repository: <https://github.com/lammoc-uff/cnpq-riskclima>
 
-## RiskClima
+## Project components
 
-RiskClima is a project focused on the development of georeferenced maps that classify the areas of Brazil most vulnerable to climate extremes. The project also identifies the type of event associated with each region and the corresponding social, environmental, or socioenvironmental vulnerability.
+| Component | Purpose |
+|---|---|
+| [`cmip6-downloader`](cmip6-downloader/README.md) | Compares catalogs, filters datasets, downloads CMIP6 members, preprocesses fields, and writes Zarr stores. |
+| [`index-xhwi`](index-xhwi/README.md) | Computes the Extreme Heatwave Index from ERA5, ERA5-Land, and CMIP6 data. |
+| [`index-spi`](index-spi/README.md) | Computes the Standardized Precipitation Index from CMIP6 and ERA5 precipitation. |
+| [`index-blocking`](index-blocking/README.md) | Generates blocking climatologies and daily atmospheric blocking series from ERA5 and CMIP6. |
+| [`index-sacz`](index-sacz/README.md) | Preprocesses atmospheric predictors and computes the South Atlantic Convergence Zone index from ERA5 and CMIP6. |
 
-The project integrates climate modeling, CMIP6-based scenarios, regionalized climate analysis, hydrological and geomorphological applications, and artificial intelligence methods to support climate risk assessment in Brazil.
+Each index is an independent Python project with its own environment, configuration, lockfile, Makefile, and operational documentation. Run commands from the directory of the component being used.
 
-Current components in this repository include:
+## General workflow
 
-- ``cmip6-downloader`` — workflow for catalog comparison, filtering, download, preprocessing, and ensemble generation of CMIP6 datasets
-- ``index-xhwi`` — reference to the dedicated repository of the Extreme Heatwave Index
-- ``index-spi`` — Standardized Precipitation Index workflows for CMIP6 and ERA5 precipitation
+1. Use `cmip6-downloader` to identify and prepare the CMIP6 datasets required by an index.
+2. Configure the selected index by copying its `.env.example` to `.env`.
+3. Install that index with its documented `make install` or `uv sync --frozen` command.
+4. Run its source-specific processing and index stages independently.
+5. Integrate the generated climate indicators with other RiskClima hazard, vulnerability, and risk products.
 
-## Project Utility
+The index READMEs are the source of truth for paths, periods, variables, credentials, external tools, and output schemas.
 
-RiskClima supports the generation of climate risk products relevant to droughts, floods, inundation, mass movements, heatwaves and human health impacts.
+## Project information
 
-The project combines climate model outputs with socioenvironmental indicators, population density, and also evaluates interactions between extreme events and Brazilian biomes. The project further considers associations with chronic non-communicable diseases using health-related datasets.
+RiskClima is coordinated by Marcio Cataldi and is associated with the Climate System Monitoring and Modeling Laboratory (LAMMOC) at Universidade Federal Fluminense (UFF), in Niteroi, Brazil. The project also has an institutional association with COPPE/UFRJ.
 
-## How users can get started with the project
+The project name is RiskClima. Its main reference is <https://riskclima.com.br>, and the source repository is <https://github.com/lammoc-uff/cnpq-riskclima>. Generated data products use the project’s documented processing conventions and are distributed under the CC BY 4.0 license when the corresponding product configuration specifies it.
 
-### Repository structure
+Dataset-specific scientific profiles, input sources, calibration periods, processing parameters, creators, and other product metadata remain documented in each component’s `.env.example` and README.
 
-    cnpq-riskclima/
-    ├── cmip6-downloader/
-    ├── index-xhwi/
-    └── index-spi/
+## Utilities
 
-### Current components
+The [`utils/convert_zarr_nc`](utils/convert_zarr_nc/README.md) directory contains a small reference utility for converting Zarr datasets to NetCDF and NetCDF datasets to Zarr. It exists as documentation and practical support because these conversions are occasionally needed while preparing and inspecting climate-data inputs.
 
-- ``cmip6-downloader``
-  Tools for comparing AWS and Google CMIP6 catalogs from Pangeo, filtering target datasets, downloading selected members, preprocessing datasets, saving Zarr outputs, and building ensembles.
+## Reproducibility
 
-- ``index-xhwi``
-  Reference directory to compute XHWI, the heatwave index, used in the RiskClima workflow.
+Each maintained index uses Python 3.12, `uv`, and a versioned `uv.lock`. Climate inputs, credentials, intermediate files, and generated results are kept outside the Python package and are configured through `.env` where required. Docker and Apptainer instructions are provided by the components that support those execution modes.
 
-- ``index-spi``
-  Workflows to compute SPI from preprocessed CMIP6 precipitation or locally cached and CDS-acquired ERA5 monthly precipitation.
+The repository does not contain credentials or general climate-data archives. Consult each component README for the required external data and system tools, including CDS API access, CDO, Google Cloud tools, and local CMIP6 Zarr stores.
 
-### Suggested workflow
+## Maintainers and contact
 
-1. Use ``cmip6-downloader`` to identify, filter, and prepare the climate model datasets required by the project.
-2. Use the dedicated ``XHWI`` repository to compute the Extreme Heatwave Index.
-3. Use ``index-spi`` to compute the Standardized Precipitation Index from prepared CMIP6 data or ERA5 data acquired through its local-first CDS workflow.
-4. Integrate outputs with other RiskClima components for hazard, vulnerability, and risk mapping.
+RiskClima is associated with LAMMOC/UFF and COPPE/UFRJ and is developed by a multidisciplinary team working on climate modeling, hydrology, socioenvironmental vulnerability, risk analysis, and applied data science.
 
-## Where users can get help with your project
-
-Users can get help through:
-
-- the official RiskClima website
-- the maintainers of each project component
-- the documentation available inside each subproject
-- direct contact with the project coordination
-
-## Maintainers of RiskClima
-
-RiskClima is developed by a multidisciplinary team working on climate modeling, hydrology, socioenvironmental vulnerability, risk analysis, and applied data science.
-
-The project is associated with ``LAMMOC/UFF`` and ``COPPE/UFRJ``, and uses climate scenarios through selected CMIP6 models. The project website also presents a team page and institutional support and funding sections.
-
-## Project scope
-
-According to the official project description, RiskClima aims to produce georeferenced vulnerability maps for Brazil, using climate scenarios, hydrological modeling, landslide and coastal erosion modeling, and artificial intelligence techniques. The project focuses on regions susceptible to prolonged droughts, floods, inundation, mass movements, heatwaves and health impacts.
-
-## Official contact
-
-- Email: ``mcataldi@id.uff.br``
-
-## Website
-
-- ``https://riskclima.com.br``
+Official contact: <mcataldi@id.uff.br>
