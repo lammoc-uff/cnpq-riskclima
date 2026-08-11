@@ -75,6 +75,22 @@ def test_calendar_conversion(calendar: str, settings: Settings) -> None:
     assert not isinstance(result.indexes["time"][0], cftime.datetime)
 
 
+def test_temporal_subset_precedes_datetime_conversion(settings: Settings) -> None:
+    time = xr.CFTimeIndex(
+        [
+            cftime.DatetimeNoLeap(2015, 1, 1),
+            cftime.DatetimeNoLeap(2500, 1, 1),
+        ]
+    )
+    dataset = xr.Dataset({"tas": ("time", [1.0, 2.0])}, coords={"time": time})
+
+    result = preprocess_time(dataset, settings, "ssp585")
+
+    assert result.sizes["time"] == 1
+    assert isinstance(result.indexes["time"], pd.DatetimeIndex)
+    assert result.indexes["time"][0] == pd.Timestamp("2015-01-01")
+
+
 def test_coordinate_aliases_longitude_and_domain(settings: Settings) -> None:
     dataset = xr.Dataset(
         {"tas": (("latitude", "longitude"), [[1.0, 2.0], [3.0, 4.0]])},

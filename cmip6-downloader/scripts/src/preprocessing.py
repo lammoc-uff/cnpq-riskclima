@@ -36,6 +36,11 @@ def preprocess_time(ds: xr.Dataset, settings: Settings, experiment_id: str) -> x
             settings.target_calendar,
             align_on=settings.calendar_align_on,
         )
+    start, end = period_for_experiment(settings, experiment_id)
+    if start is not None or end is not None:
+        ds = ds.sel(
+            time=slice(start.isoformat() if start else None, end.isoformat() if end else None)
+        )
     if settings.convert_datetime_index and isinstance(ds.indexes["time"], CFTimeIndex):
         try:
             ds["time"] = ds.indexes["time"].to_datetimeindex(time_unit="ns")
@@ -47,11 +52,6 @@ def preprocess_time(ds: xr.Dataset, settings: Settings, experiment_id: str) -> x
         duplicated = pd.Index(ds.indexes["time"]).duplicated()
         if duplicated.any():
             ds = ds.isel(time=~duplicated)
-    start, end = period_for_experiment(settings, experiment_id)
-    if start is not None or end is not None:
-        ds = ds.sel(
-            time=slice(start.isoformat() if start else None, end.isoformat() if end else None)
-        )
     return ds
 
 

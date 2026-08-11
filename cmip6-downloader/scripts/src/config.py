@@ -107,8 +107,8 @@ class Settings(BaseSettings):
     historical_end: date | None
     historical_experiments: list[str]
     future_experiments: list[str]
-    future_start: date
-    future_end: date
+    future_start: date | None
+    future_end: date | None
 
     latitude_min: float
     latitude_max: float
@@ -149,7 +149,13 @@ class Settings(BaseSettings):
     log_level: LogLevel
     log_format: str
 
-    @field_validator("historical_start", "historical_end", mode="before")
+    @field_validator(
+        "historical_start",
+        "historical_end",
+        "future_start",
+        "future_end",
+        mode="before",
+    )
     @classmethod
     def empty_date_is_none(cls, value: object) -> object:
         """Interpret explicitly empty historical bounds as unbounded."""
@@ -161,8 +167,6 @@ class Settings(BaseSettings):
         "table_ids",
         "variable_ids",
         "grid_labels",
-        "historical_experiments",
-        "future_experiments",
     )
     @classmethod
     def validate_required_lists(cls, value: list[str]) -> list[str]:
@@ -171,7 +175,12 @@ class Settings(BaseSettings):
             raise ValueError("required filter lists must contain non-empty values")
         return value
 
-    @field_validator("member_ids", "excluded_variables")
+    @field_validator(
+        "member_ids",
+        "excluded_variables",
+        "historical_experiments",
+        "future_experiments",
+    )
     @classmethod
     def validate_optional_lists(cls, value: list[str]) -> list[str]:
         """Reject blank entries while allowing an empty list."""
@@ -272,17 +281,24 @@ class Settings(BaseSettings):
             and self.historical_start > self.historical_end
         ):
             raise ValueError("historical start must not be after historical end")
-        if self.future_start > self.future_end:
+        if self.future_start and self.future_end and self.future_start > self.future_end:
             raise ValueError("future start must not be after future end")
         historical = set(self.historical_experiments)
         future = set(self.future_experiments)
         experiments = set(self.experiment_ids)
+        if not historical and not future:
+            raise ValueError("at least one historical or future experiment must be configured")
         if not historical <= experiments:
             raise ValueError("HISTORICAL_EXPERIMENTS must be a subset of EXPERIMENT_IDS")
         if not future <= experiments:
             raise ValueError("FUTURE_EXPERIMENTS must be a subset of EXPERIMENT_IDS")
         if historical & future:
             raise ValueError("HISTORICAL_EXPERIMENTS and FUTURE_EXPERIMENTS must be disjoint")
+        if historical | future != experiments:
+            raise ValueError(
+                "HISTORICAL_EXPERIMENTS and FUTURE_EXPERIMENTS must classify every "
+                "EXPERIMENT_IDS value"
+            )
         self._validate_output_collisions()
         return self
 
