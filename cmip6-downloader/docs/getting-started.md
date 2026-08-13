@@ -31,10 +31,10 @@ Paths are relative to the project root unless absolute. Parent traversal (`..`) 
 | `VARIABLE_IDS` | Required variable list; see `.env.example` for the complete value. |
 | `GRID_LABELS` | Required grid list: `gn`, `gr`, and `gr1`. |
 | `MEMBER_IDS` | Optional member filter; `[]` means every member. |
-| `HISTORICAL_START`, `HISTORICAL_END` | Optional ISO date bounds; empty means an open historical interval. |
-| `HISTORICAL_EXPERIMENTS` | Non-empty experiments using historical bounds: `["historical"]`. |
-| `FUTURE_EXPERIMENTS` | Experiments using future bounds: `["ssp245","ssp585"]`. |
-| `FUTURE_START`, `FUTURE_END` | Future interval, `2015-01-01` through `2050-12-31`. |
+| `HISTORICAL_START`, `HISTORICAL_END` | Optional ISO date bounds; empty values create an open historical interval. |
+| `HISTORICAL_EXPERIMENTS` | Experiments using historical bounds; `[]` supports future-only downloads. |
+| `FUTURE_EXPERIMENTS` | Experiments using future bounds; `[]` supports historical-only downloads. |
+| `FUTURE_START`, `FUTURE_END` | Optional ISO date bounds; empty values create an open future interval. |
 | `LATITUDE_MIN`, `LATITUDE_MAX` | Domain latitude bounds, `-70` and `20`. |
 | `LONGITUDE_MIN`, `LONGITUDE_MAX` | Domain longitude bounds, `-120` and `-5`. |
 | `SPATIAL_SUBSET` | Enable rectilinear spatial selection; value `true`. |
@@ -58,7 +58,7 @@ Paths are relative to the project root unless absolute. Parent traversal (`..`) 
 | `ENSEMBLE_ALL_FILENAME`, `ENSEMBLE_MEAN_FILENAME` | Stacked and mean ensemble store names. |
 | `LOG_LEVEL`, `LOG_FORMAT` | Python log severity and format: `INFO` and the standard timestamp/level/logger/message format. |
 
-Historical and future experiment lists must be non-empty, disjoint subsets of `EXPERIMENT_IDS`. Group-local catalog, log, stacked ensemble, and mean ensemble names must all differ. Filtered output names must differ from each other and from a preferred catalog in the same directory. Resolved AWS input, Google input, and preferred output paths must also be distinct.
+Historical and future experiment lists may be empty individually, but not simultaneously. They must be disjoint, and together they must classify every value in `EXPERIMENT_IDS`. Each temporal bound is optional: one empty bound creates an open-ended interval, while two empty bounds disable temporal subsetting for that experiment class. Group-local catalog, log, stacked ensemble, and mean ensemble names must all differ. Filtered output names must differ from each other and from a preferred catalog in the same directory. Resolved AWS input, Google input, and preferred output paths must also be distinct.
 
 ## Catalog Resolution
 

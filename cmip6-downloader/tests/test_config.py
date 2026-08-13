@@ -1,5 +1,6 @@
 """Settings and CLI override tests."""
 
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -22,8 +23,8 @@ def test_env_example_exactly_matches_settings() -> None:
     aliases = {str(field.alias) for field in Settings.model_fields.values()}
     assert _env_keys(PROJECT_ROOT / ".env.example") == aliases
     from_example = Settings(_env_file=PROJECT_ROOT / ".env.example")
-    assert from_example.historical_start is None
-    assert from_example.historical_end is None
+    assert from_example.historical_start == date(1950, 1, 1)
+    assert from_example.historical_end == date(2014, 12, 31)
     assert all(field.is_required() for field in Settings.model_fields.values())
     with pytest.raises(ValidationError, match="Field required"):
         Settings(_env_file=None)
@@ -36,6 +37,65 @@ def test_settings_rereads_env(tmp_path: Path) -> None:
     assert Settings(_env_file=env_file).max_workers == 2
     env_file.write_text(example.replace("MAX_WORKERS=4", "MAX_WORKERS=7"), encoding="utf-8")
     assert Settings(_env_file=env_file).max_workers == 7
+
+
+def test_settings_accepts_future_only_experiments(settings: Settings) -> None:
+    values = settings.model_dump()
+    values.update(
+        experiment_ids=["ssp585"],
+        historical_start=None,
+        historical_end=None,
+        historical_experiments=[],
+        future_experiments=["ssp585"],
+    )
+
+    future_only = Settings.model_validate(values)
+
+    assert future_only.experiment_ids == ["ssp585"]
+    assert future_only.historical_experiments == []
+    assert future_only.future_experiments == ["ssp585"]
+
+
+def test_settings_accepts_historical_only_experiments(settings: Settings) -> None:
+    values = settings.model_dump()
+    values.update(
+        experiment_ids=["historical"],
+        historical_experiments=["historical"],
+        future_experiments=[],
+        future_start=None,
+        future_end=None,
+    )
+
+    historical_only = Settings.model_validate(values)
+
+    assert historical_only.experiment_ids == ["historical"]
+    assert historical_only.historical_experiments == ["historical"]
+    assert historical_only.future_experiments == []
+    assert historical_only.future_start is None
+    assert historical_only.future_end is None
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "expected_start", "expected_end"),
+    [
+        ("", date(2050, 12, 31), None, date(2050, 12, 31)),
+        (date(2015, 1, 1), "", date(2015, 1, 1), None),
+    ],
+)
+def test_settings_accepts_open_future_period(
+    settings: Settings,
+    start: date | str,
+    end: date | str,
+    expected_start: date | None,
+    expected_end: date | None,
+) -> None:
+    values = settings.model_dump()
+    values.update(future_start=start, future_end=end)
+
+    open_period = Settings.model_validate(values)
+
+    assert open_period.future_start == expected_start
+    assert open_period.future_end == expected_end
 
 
 def test_provider_priority_accepts_both_orders(settings: Settings) -> None:
@@ -109,7 +169,9 @@ def test_format_member_store_validates_member_id(settings: Settings) -> None:
     [
         ({"historical_experiments": ["missing"]}, "subset"),
         ({"future_experiments": ["missing"]}, "subset"),
+        ({"historical_experiments": [], "future_experiments": []}, "at least one"),
         ({"historical_experiments": ["historical", "ssp245"]}, "disjoint"),
+        ({"future_experiments": ["ssp245"]}, "classify every"),
         ({"group_log_filename": "catalog_group.csv"}, "group catalog"),
         ({"google_only_catalog_filename": "catalog_aws_only.csv"}, "filtered catalog"),
         ({"preferred_catalog_path": "filtered_catalog/catalog_aws_only.csv"}, "collides"),

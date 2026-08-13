@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "riskclima-blocking"
+version = "0.1.0"
+description = "Atmospheric blocking index processing for RiskClima"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "cdsapi>=0.7",
+    "cftime>=1.6",
+    "dask[array]>=2024.5",
+    "metpy>=1.6",
+    "netcdf4>=1.7",
+    "numpy>=1.26,<2",
+    "pandas>=2.2",
+    "pydantic-settings>=2.6",
+    "xarray>=2024.5",
+    "zarr>=3",
+]
+
+[dependency-groups]
+dev = [
+    "pyrefly>=0.29",
+    "pytest>=8.3",
+    "pytest-cov>=6",
+    "ruff>=0.9",
+]
+
+[project.scripts]
+riskclima-blocking-climatology-era5 = "riskclima_blocking.generate_climatology_blocking_index_era5:main"
+riskclima-blocking-series-era5 = "riskclima_blocking.series_blocking_index_era5:main"
+riskclima-blocking-climatology-cmip6 = "riskclima_blocking.generate_climatology_blocking_index_cmip6:main"
+riskclima-blocking-series-cmip6 = "riskclima_blocking.series_blocking_index_cmip6:main"
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+extend-exclude = ["**/*.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "PTH", "RUF"]
+
+[tool.pyrefly]
+project-includes = ["src", "tests"]
+python-version = "3.12"
+search-path = ["src"]
+preset = "strict"
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["riskclima_blocking"]

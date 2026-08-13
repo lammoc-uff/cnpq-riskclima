@@ -37,6 +37,16 @@ venv/
 !index-spi/geo_data/brazil/BR_Pais_2025.prj
 !index-spi/geo_data/brazil/BR_Pais_2025.cpg
 
+# RiskClima SACZ area boundary
+!index-sacz/areas/sams_index_calc_areas.shp
+!index-sacz/areas/sams_index_calc_areas.shx
+!index-sacz/areas/sams_index_calc_areas.dbf
+!index-sacz/areas/sams_index_calc_areas.prj
+!index-sacz/areas/sams_index_calc_areas.cpg
+
+# RiskClima blocking generated images
+index-blocking/*.sif
+
 # GeoPackage
 *.gpkg
 

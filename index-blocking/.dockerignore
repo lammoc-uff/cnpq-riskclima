@@ -1,0 +1,11 @@
+.env
+.venv
+__pycache__
+*.pyc
+*.csv
+*.nc
+*.zarr
+*.ipynb
+.git
+.gitignore
+*:Zone.Identifier
