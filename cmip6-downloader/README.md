@@ -112,7 +112,7 @@ MEMBER_STORE_TEMPLATE=member-{member_id}.zarr
 
 Before the first run, review:
 
-- Catalogs: place the AWS and Google CSV files at the configured paths and verify their schemas.
+- Catalogs: download the master CSV files for [AWS](https://cmip6-pds.s3.amazonaws.com/pangeo-cmip6.csv) and [Google Cloud](https://cmip6.storage.googleapis.com/pangeo-cmip6.csv), place them at the configured paths, and verify their schemas. The [Pangeo CMIP6 cloud access guide](https://pangeo-data.github.io/pangeo-cmip6-cloud/accessing_data.html) documents both catalogs and how to access their Zarr stores.
 - Filters: confirm models, experiments, tables, variables, grids, and optional members.
 - Periods: empty historical bounds keep all available historical dates; future experiments use the configured interval.
 - Domain: confirm latitude and longitude bounds. Variables listed in `EXCLUDED_VARIABLES` remain global.
