@@ -21,6 +21,8 @@ import numpy as np
 import xarray as xr
 
 from riskclima_sacz.config import SACZSettings, parse_settings
+from riskclima_sacz.libs import era5 as loaded_era5
+from riskclima_sacz.libs import grid as loaded_grid
 
 # Project root
 SACZ_BASE = Path()
@@ -55,9 +57,6 @@ def configure(settings: SACZSettings) -> None:
     ERA5_INPUT_DIR = settings.path(settings.era5_input_directory)
     ERA5_YEAR = settings.era5_year
     areas = gpd.read_file(settings.path(settings.areas_file)).set_index("area")
-    from libs import era5 as loaded_era5
-    from libs import grid as loaded_grid
-
     era5 = loaded_era5
     grid = loaded_grid
 

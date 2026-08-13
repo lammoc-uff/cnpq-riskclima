@@ -18,6 +18,8 @@ import numpy as np
 import xarray as xr
 
 from riskclima_sacz.config import SACZSettings, parse_settings
+from riskclima_sacz.libs import era5 as loaded_era5
+from riskclima_sacz.libs import grid as loaded_grid
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 xr.set_options(use_new_combine_kwarg_defaults=True)
@@ -36,9 +38,6 @@ YEAR = 0
 SACZ_BASE = Path()
 
 
-# Project dependencies
-
-sys.path.insert(0, str(SACZ_BASE))
 SHAPE_PATH = Path()
 areas: Any = None
 grid_lib: Any = None
@@ -66,9 +65,6 @@ def configure(settings: SACZSettings) -> None:
     YEARS = list(range(settings.cmip6_start_year, settings.cmip6_end_year + 1))
     SHAPE_PATH = settings.path(settings.areas_file)
     areas = gpd.read_file(SHAPE_PATH).set_index("area")
-    from libs import era5 as loaded_era5
-    from libs import grid as loaded_grid
-
     era5_lib = loaded_era5
     grid_lib = loaded_grid
 

@@ -5,7 +5,7 @@ This directory contains Python workflows for the South Atlantic Convergence Zone
 1. preprocessing atmospheric fields into the CSV predictors required by the statistical model;
 2. calculating the SACZ index for the configured year or CMIP6 period.
 
-The repository contains the workflow code and configuration templates. The `libs` modules, SACZ area shapefile, and model coefficient files are required runtime assets and must be provided separately.
+The repository contains the workflow code, internal scientific catalogs and utilities, and configuration templates. The SACZ area shapefile and model coefficient files are required runtime assets and must be provided separately.
 
 ## Install
 
@@ -126,10 +126,6 @@ Run preprocessing before the corresponding index calculation. Existing intermedi
 ## Required runtime assets
 
 The following assets are not included in the repository yet:
-
-### Internal `libs` modules
-
-The preprocessing scripts import `libs.grid` and `libs.era5`. Add these modules to the project before running either preprocessing stage.
 
 ### SACZ areas
 
@@ -255,7 +251,9 @@ See [`docs/apptainer.md`](docs/apptainer.md) for the binding requirements.
 
 ## Current limitations
 
-The scientific assets listed in [Required runtime assets](#required-runtime-assets) are pending addition to this repository. The workflow infrastructure is prepared for them, but preprocessing cannot run until `libs`, the area shapefile, and the coefficient files are available.
+The area shapefile and model coefficient files listed in [Required runtime assets](#required-runtime-assets) are pending addition to this repository. Preprocessing requires the shapefile, and index calculation requires the coefficient files.
+
+Spatial clipping currently retains the source workflow's SIRGAS 2000 (`EPSG:4989`) and longitude assumptions. Verify them against the complete SACZ shapefile before validating scientific output.
 
 ## Scientific reference
 
