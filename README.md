@@ -4,6 +4,7 @@ RiskClima develops georeferenced climate-risk products for Brazil. The project c
 
 Project website: <https://riskclima.com.br>
 Repository: <https://github.com/lammoc-uff/cnpq-riskclima>
+![RiskClima Website](docs/images/riskclima.jpeg)
 
 ## Project components
 
