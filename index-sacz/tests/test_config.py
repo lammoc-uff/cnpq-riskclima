@@ -9,6 +9,9 @@ def test_settings_load_defaults() -> None:
     assert settings.era5_year is None
     assert settings.cmip6_source_id == "BCC-CSM2-MR"
     assert settings.cmip6_experiment_id == "ssp245"
+    assert settings.regions == ("AB", "C", "DE")
+    assert settings.daily_results_filename == "SACZ_index_daily_all_years.csv"
+    assert settings.monthly_results_filename == "SACZ_index_monthly_all_years.csv"
 
 
 def test_cli_arguments_override_settings(monkeypatch) -> None:

@@ -33,8 +33,12 @@ dev = [
 [project.scripts]
 riskclima-sacz-process-era5 = "riskclima_sacz.process_sacz_index_era5:main"
 riskclima-sacz-index-era5 = "riskclima_sacz.main_sacz_index_era5:main"
+riskclima-sacz-consolidate-era5 = "riskclima_sacz.results:consolidate_era5_results"
+riskclima-sacz-monthly-era5 = "riskclima_sacz.results:aggregate_era5_monthly_results"
 riskclima-sacz-process-cmip6 = "riskclima_sacz.process_sacz_index_cmip6:main"
 riskclima-sacz-index-cmip6 = "riskclima_sacz.main_sacz_index_cmip6:main"
+riskclima-sacz-consolidate-cmip6 = "riskclima_sacz.results:consolidate_cmip6_results"
+riskclima-sacz-monthly-cmip6 = "riskclima_sacz.results:aggregate_cmip6_monthly_results"
 
 [tool.uv]
 package = true

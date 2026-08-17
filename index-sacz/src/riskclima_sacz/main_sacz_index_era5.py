@@ -8,13 +8,13 @@ for each index region.
 """
 
 import warnings
-from math import exp
 from pathlib import Path
 from typing import cast
 
 import pandas as pd
 
 from riskclima_sacz.config import SACZSettings, parse_settings
+from riskclima_sacz.model import logistic_probability
 
 # Suppress known warnings
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -49,12 +49,6 @@ variables = [
     "VWND850",
     "VORT200",
 ]
-
-
-# Logistic classifier
-def classifier(x: float) -> float:
-    """Map the linear score to the [0, 1] interval."""
-    return exp(x) / (1 + exp(x))
 
 
 def configure(settings: SACZSettings) -> None:
@@ -182,7 +176,8 @@ def process_year(year: int, data_source: str) -> None:
         betaweighted_path = interdpath_step3 / f"{area}.csv"
         betaweighted = pd.read_csv(betaweighted_path).set_index("time").astype(float)
 
-        classified = betaweighted.apply(classifier, axis=1).to_frame()
+        classified = betaweighted.map(logistic_probability)
+        classified.columns = [area]
         classified.index = pd.to_datetime(classified.index)
 
         classified_path = outputdpath / f"{area}.csv"

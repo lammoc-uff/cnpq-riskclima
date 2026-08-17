@@ -23,8 +23,12 @@ Use the other installed commands for the remaining stages:
 
 ```text
 riskclima-sacz-index-era5
+riskclima-sacz-consolidate-era5
+riskclima-sacz-monthly-era5
 riskclima-sacz-process-cmip6
 riskclima-sacz-index-cmip6
+riskclima-sacz-consolidate-cmip6
+riskclima-sacz-monthly-cmip6
 ```
 
-The project bind must contain the configured `areas`, `coefs`, ERA5 directories, and CMIP6 directories. The ERA5 workflow still depends on access to the public ARCO ERA5 bucket through `gsutil`.
+The project bind must contain the configured `areas`, `coefs`, ERA5 directories, and CMIP6 directories. The ERA5 workflow still depends on access to the public ARCO ERA5 bucket through `gsutil`. Consolidation and monthly commands use the same bind and `.env` configuration as their corresponding index workflow.

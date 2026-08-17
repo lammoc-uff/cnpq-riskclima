@@ -7,6 +7,10 @@ Run the stages independently from `index-sacz`:
 ```bash
 make process-era5
 make index-era5
+make consolidate-era5
+make monthly-era5
 ```
 
 Set `ERA5_YEAR` in `.env` or override it with `ARGS="--era5-year 2021"`. The preprocessing requires CDO and `gsutil`, as described in the main README.
+
+Consolidation combines every complete annual result currently under `ERA5_OUTPUT_DIRECTORY`. Monthly aggregation sums the consolidated daily indexes by calendar month.

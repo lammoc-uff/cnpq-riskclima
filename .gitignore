@@ -41,8 +41,21 @@ venv/
 !index-sacz/areas/sams_index_calc_areas.shp
 !index-sacz/areas/sams_index_calc_areas.shx
 !index-sacz/areas/sams_index_calc_areas.dbf
-!index-sacz/areas/sams_index_calc_areas.prj
 !index-sacz/areas/sams_index_calc_areas.cpg
+
+# RiskClima SACZ model coefficients
+!index-sacz/coefs/step1/scale_coefs_AB.csv
+!index-sacz/coefs/step1/scale_coefs_C.csv
+!index-sacz/coefs/step1/scale_coefs_DE.csv
+!index-sacz/coefs/step2/pc_weights_AB.csv
+!index-sacz/coefs/step2/pc_weights_C.csv
+!index-sacz/coefs/step2/pc_weights_DE.csv
+!index-sacz/coefs/step3/betas_AB.csv
+!index-sacz/coefs/step3/betas_C.csv
+!index-sacz/coefs/step3/betas_DE.csv
+
+# RiskClima SACZ regression fixtures
+!index-sacz/tests/fixtures/**/*.csv
 
 # RiskClima blocking generated images
 index-blocking/*.sif

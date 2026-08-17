@@ -27,6 +27,21 @@ class SACZSettings(BaseSettings):
     coefficients_directory: Path = Field(
         default=Path("coefs"), validation_alias="SACZ_COEFFICIENTS_DIRECTORY"
     )
+    regions: tuple[str, ...] = Field(
+        default=("AB", "C", "DE"),
+        min_length=1,
+        validation_alias="SACZ_REGIONS",
+    )
+    daily_results_filename: str = Field(
+        default="SACZ_index_daily_all_years.csv",
+        min_length=1,
+        validation_alias="SACZ_DAILY_RESULTS_FILENAME",
+    )
+    monthly_results_filename: str = Field(
+        default="SACZ_index_monthly_all_years.csv",
+        min_length=1,
+        validation_alias="SACZ_MONTHLY_RESULTS_FILENAME",
+    )
 
     era5_year: int | None = Field(default=None, validation_alias="ERA5_YEAR")
     era5_raw_directory: Path = Field(

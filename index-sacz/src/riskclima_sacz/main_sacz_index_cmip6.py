@@ -13,10 +13,10 @@ import warnings
 from pathlib import Path
 from typing import cast
 
-import numpy as np
 import pandas as pd
 
 from riskclima_sacz.config import SACZSettings, parse_settings
+from riskclima_sacz.model import logistic_probability
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
@@ -83,13 +83,8 @@ def configure(settings: SACZSettings) -> None:
 # Statistical model
 
 
-def classifier(x: float) -> float:
-    """Map the linear score to the [0, 1] interval using a logistic function."""
-    return np.exp(x) / (1 + np.exp(x))
-
-
 def process_year(year: int, source_id: str, experiment_id: str) -> None:
-    inputdpath = CMIP6_INPUT_DIR / SOURCE_ID / EXPERIMENT_ID / str(year)
+    inputdpath = CMIP6_INPUT_DIR / source_id / experiment_id / str(year)
     if not inputdpath.exists():
         print(f"[ERROR] Input directory not found: {inputdpath}")
         print("Run cmip6_process_sacz_index.py for this year before computing the index.")
@@ -108,11 +103,11 @@ def process_year(year: int, source_id: str, experiment_id: str) -> None:
     cpath_step2 = COEFFICIENTS_DIR / "step2"
     cpath_step3 = COEFFICIENTS_DIR / "step3"
 
-    interdpath = CMIP6_INTERMEDIATES_DIR / SOURCE_ID / EXPERIMENT_ID / str(year)
+    interdpath = CMIP6_INTERMEDIATES_DIR / source_id / experiment_id / str(year)
     interdpath_step1 = interdpath / "step1"
     interdpath_step2 = interdpath / "step2"
     interdpath_step3 = interdpath / "step3"
-    outputdpath = CMIP6_OUTPUT_DIR / SOURCE_ID / EXPERIMENT_ID / str(year)
+    outputdpath = CMIP6_OUTPUT_DIR / source_id / experiment_id / str(year)
 
     for d in [interdpath_step1, interdpath_step2, interdpath_step3, outputdpath]:
         d.mkdir(exist_ok=True, parents=True)
@@ -199,7 +194,7 @@ def process_year(year: int, source_id: str, experiment_id: str) -> None:
 
     for area in AREAS:
         betaweighted = pd.read_csv(interdpath_step3 / f"{area}.csv").set_index("time").astype(float)
-        classified = betaweighted.apply(classifier, axis=1)
+        classified = betaweighted.map(logistic_probability)
         classified.index = pd.to_datetime(classified.index)
         classified.to_csv(outputdpath / f"{area}.csv")
 
