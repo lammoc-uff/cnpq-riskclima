@@ -44,7 +44,21 @@ From the repository root:
 ```bash
 cd index-blocking
 make install
+make install-cdo
 cp .env.example .env
+```
+
+`make install-cdo` installs CDO as a system dependency on Ubuntu or Debian and requires `sudo`. To install it manually instead, run:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y cdo
+```
+
+Verify that CDO is available to the uv environment:
+
+```bash
+uv run cdo --version
 ```
 
 The direct uv equivalent is:
